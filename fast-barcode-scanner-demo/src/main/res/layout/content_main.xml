@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingBottom="@dimen/activity_vertical_margin"
+    android:paddingLeft="@dimen/activity_horizontal_margin"
+    android:paddingRight="@dimen/activity_horizontal_margin"
+    android:paddingTop="@dimen/activity_vertical_margin"
+    app:layout_behavior="@string/appbar_scrolling_view_behavior"
+    tools:context="dk.schaumburgit.fastbarcodescannerdemo.MainActivity"
+    tools:showIn="@layout/activity_main">
+
+    <TextView
+        android:text="Hello World!"
+        android:textSize="15pt"
+        android:textAlignment="center"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/textView" />
+    <ImageView
+        android:layout_width="fill_parent"
+        android:layout_height="260dp"
+        android:id="@+id/imageView"
+        android:layout_below="@+id/textView"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="0dp" />
+    <ProgressBar
+        android:id="@+id/progressBar1"
+        style="?android:attr/progressBarStyleLarge"
+        android:visibility="invisible"
+        android:layout_width="wrap_content"
+        android:layout_height="10pt"
+        android:layout_below="@+id/imageView"
+        android:layout_alignParentRight="true"
+        android:layout_alignStart="@+id/textView"
+        android:indeterminate="true" />
+    <Button
+        android:layout_width="fill_parent"
+        android:layout_height="50dp"
+        android:layout_marginBottom="5dp"
+        android:text="Stop scan"
+        android:layout_above="@+id/button2"
+        android:layout_alignParentStart="true"
+        android:background="@android:color/darker_gray"
+        android:enabled="false"
+        android:id="@+id/button3" />
+    <Button
+        android:layout_width="fill_parent"
+        android:layout_height="50dp"
+        android:layout_marginBottom="5dp"
+        android:text="Start scan"
+        android:layout_above="@+id/focus"
+        android:layout_alignParentStart="true"
+        android:id="@+id/button2"
+        android:background="@android:color/darker_gray"
+        android:enabled="false"/>
+    <Button
+        android:layout_width="fill_parent"
+        android:layout_height="50dp"
+        android:layout_marginBottom="46dp"
+        android:text="Focus"
+        android:id="@+id/focus"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
+        android:background="@android:color/holo_green_light"/>
+
+</RelativeLayout>
