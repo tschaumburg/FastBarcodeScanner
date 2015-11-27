@@ -237,10 +237,10 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
     }
 
     private void openCamera() {
-        if (getActivity().checkSelfPermission(Manifest.permission.CAMERA)
-                != PackageManager.PERMISSION_GRANTED) {
-            throw new UnsupportedOperationException("CAMERA permission required");
-        }
+        //if (getActivity().checkSelfPermission(Manifest.permission.CAMERA)
+        //        != PackageManager.PERMISSION_GRANTED) {
+        //    throw new UnsupportedOperationException("CAMERA permission required");
+        //}
 
         int width;
         int height;
@@ -266,6 +266,10 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
             manager.openCamera(mCameraId, mStateCallback, mFocusHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
+            throw new UnsupportedOperationException("CAMERA permission required");
+        } catch (SecurityException e) {
+            e.printStackTrace();
+            throw new UnsupportedOperationException("CAMERA permission required");
         } catch (InterruptedException e) {
             throw new RuntimeException("Interrupted while trying to lock camera opening.", e);
         } catch (Exception e) {
