@@ -14,3 +14,17 @@ The effect of tracking naturally relies on the images being part of a closely sp
 But for controlled movements, tracking will be succesfull in 80% of the cases (in my tests: stationary camera, barcodes moved past at a controlled pace).
 
 And the tracking tolerance - i.e. the relative margin that is added to the previous match to get the reduced search area - is adjustable, allowing for lower or higher speeds.
+
+##Usage
+
+    MyApp() {
+        this.mBarcodeFinder = new TrackingBarcodeScanner(1.0); // relative tracking margin = 1.0
+    }
+    @Override
+    public void onImageAvailable() {
+        Image image = mImageSource.GetLatestImage();
+        ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+        byte[] bytes = new byte[buffer.remaining()];
+        buffer.get(bytes);
+        String newBarcode = mBarcodeFinder.find(image.getFormat(), image.getWidth(), image.getHeight(), bytes);
+    }
