@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/FastBarcodeScanner.iml" filepath="$PROJECT_DIR$/FastBarcodeScanner.iml" />
+      <module fileurl="file://$PROJECT_DIR$/fast-barcode-scanner/fast-barcode-scanner.iml" filepath="$PROJECT_DIR$/fast-barcode-scanner/fast-barcode-scanner.iml" />
+      <module fileurl="file://$PROJECT_DIR$/fast-barcode-scanner-demo/fast-barcode-scanner-demo.iml" filepath="$PROJECT_DIR$/fast-barcode-scanner-demo/fast-barcode-scanner-demo.iml" />
+      <module fileurl="file://$PROJECT_DIR$/still-sequence-camera/still-sequence-camera.iml" filepath="$PROJECT_DIR$/still-sequence-camera/still-sequence-camera.iml" />
+      <module fileurl="file://$PROJECT_DIR$/tracking-barcode-scanner/tracking-barcode-scanner.iml" filepath="$PROJECT_DIR$/tracking-barcode-scanner/tracking-barcode-scanner.iml" />
+    </modules>
+  </component>
+</project>
