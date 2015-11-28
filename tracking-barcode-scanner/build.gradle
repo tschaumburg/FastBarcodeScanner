@@ -3,7 +3,7 @@ apply plugin: 'com.android.library'
 ext {
     PUBLISH_GROUP_ID = 'dk.schaumburgit.fast-barcode-scanner'
     PUBLISH_ARTIFACT_ID = 'tracking-barcode-scanner'
-    PUBLISH_VERSION = '1.0.1'
+    PUBLISH_VERSION = '1.0.2'
 }
 
 android {

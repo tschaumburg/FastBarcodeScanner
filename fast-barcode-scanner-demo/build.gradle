@@ -3,7 +3,7 @@ apply plugin: 'com.android.application'
 ext {
     PUBLISH_GROUP_ID = 'dk.schaumburgit.fast-barcode-scanner'
     PUBLISH_ARTIFACT_ID = 'fast-barcode-scanner-demo'
-    PUBLISH_VERSION = '1.0.1'
+    PUBLISH_VERSION = '1.0.2'
 }
 
 android {
@@ -30,10 +30,10 @@ dependencies {
     testCompile 'junit:junit:4.12'
     compile 'com.android.support:appcompat-v7:23.1.0'
     compile 'com.android.support:design:23.1.0'
-    compile project(':fast-barcode-scanner')
     compile 'com.android.support:support-v4:23.1.0'
     compile 'com.android.support:support-v13:23.1.0'
     compile 'com.android.support:appcompat-v7:23.1.0'
+    compile 'dk.schaumburgit.fast-barcode-scanner:fast-barcode-scanner:1.0.2'
 }
 
 apply from: 'https://raw.githubusercontent.com/blundell/release-android-library/master/android-release-aar.gradle'
