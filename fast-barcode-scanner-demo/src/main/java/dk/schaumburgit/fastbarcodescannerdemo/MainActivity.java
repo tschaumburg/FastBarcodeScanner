@@ -28,7 +28,9 @@ import android.widget.TextView;
 import dk.schaumburgit.fastbarcodescanner.FastBarcodeScanner;
 import dk.schaumburgit.stillsequencecamera.StillSequenceCamera2;
 
-public class MainActivity extends AppCompatActivity implements FastBarcodeScanner.BarcodeDetectedListener {
+public class MainActivity extends AppCompatActivity
+        implements FastBarcodeScanner.BarcodeDetectedListener, FastBarcodeScanner.ScanningStateListener
+{
     private static final String TAG = "FastBarcodeScannerDemo";
 
     @Override
@@ -38,15 +40,7 @@ public class MainActivity extends AppCompatActivity implements FastBarcodeScanne
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-        Button focusButton = (Button)findViewById(R.id.focus);
-        focusButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                startFocus();
-            }
-        });
-
-        Button startButton = (Button)findViewById(R.id.button2);
+        Button startButton = (Button)findViewById(R.id.start);
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -86,30 +80,16 @@ public class MainActivity extends AppCompatActivity implements FastBarcodeScanne
     }
 
     FastBarcodeScanner mScanner = null;
-    private void startFocus() {
+    private void startScan() {
         requestCameraPermission();
 
         if (mScanner == null) {
             mScanner = new FastBarcodeScanner(this, null);
+            mScanner.setScanningStateListener(this);
             mScanner.setBarcodeListener(this);
         }
 
-        //showSpinner();
-        mScanner.StartFocus();
-
-        Button startButton = (Button)findViewById(R.id.button2);
-        Button focusButton = (Button)findViewById(R.id.focus);
-        focusButton.setEnabled(false);
-        startButton.setEnabled(true);
-    }
-
-    private void focusDone() {
-        hideSpinner();
-    }
-
-    private void startScan() {
-        Button focusButton = (Button)findViewById(R.id.focus);
-        Button startButton = (Button)findViewById(R.id.button2);
+        Button startButton = (Button)findViewById(R.id.start);
         Button stopButton = (Button)findViewById(R.id.button3);
 
         startButton.setEnabled(false);
@@ -118,8 +98,7 @@ public class MainActivity extends AppCompatActivity implements FastBarcodeScanne
     }
 
     private void stopScan() {
-        Button focusButton = (Button)findViewById(R.id.focus);
-        Button startButton = (Button)findViewById(R.id.button2);
+        Button startButton = (Button)findViewById(R.id.start);
         Button stopButton = (Button)findViewById(R.id.button3);
 
         stopButton.setEnabled(false);
@@ -167,16 +146,62 @@ public class MainActivity extends AppCompatActivity implements FastBarcodeScanne
         }
     }
 
+    @Override
+    public void onFocusStateChanged(int focusState)
+    {
+        final TextView focusView = (TextView) findViewById(R.id.textView2);
+        String focus = "unknown";
+        switch (focusState)
+        {
+            case FastBarcodeScanner.ScanningStateListener.FOCUS_IDLE:
+                focus = "idle";
+                break;
+            case FastBarcodeScanner.ScanningStateListener.FOCUS_FOCUSING:
+                focus = "focusing...";
+                break;
+            case FastBarcodeScanner.ScanningStateListener.FOCUS_FOCUSED:
+                focus = "focus";
+                break;
+            case FastBarcodeScanner.ScanningStateListener.FOCUS_UNFOCUSED:
+                focus = "no focus";
+                break;
+            case FastBarcodeScanner.ScanningStateListener.FOCUS_LOCKED:
+                focus = "locked!";
+                break;
+            case FastBarcodeScanner.ScanningStateListener.FOCUS_FAILED:
+                focus = "failed!";
+                break;
+            default:
+                focus = "unknown (" + focus + ")";
+                break;
+        }
+        final String finalFocus = focus;
+        this.runOnUiThread(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        focusView.setText(finalFocus);
+                    }
+                }
+        );
+    }
+
+    @Override
+    public void onScanSpeedChanged(int fps)
+    {
+
+    }
+
     private static final int REQUEST_CAMERA_PERMISSION = 1;
     private static final String FRAGMENT_DIALOG = "dialog";
 
     private void requestCameraPermission() {
-        if (this.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
-            new ConfirmationDialog().show(this.getFragmentManager(), FRAGMENT_DIALOG);
-        } else {
+        //if (this.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
+        //    new ConfirmationDialog().show(this.getFragmentManager(), FRAGMENT_DIALOG);
+        //} else {
             this.requestPermissions(new String[]{Manifest.permission.CAMERA},
                     REQUEST_CAMERA_PERMISSION);
-        }
+        //}
         //Log.e(TAG, "DOESNT HAVE CAMERA PERMISSION");
     }
 

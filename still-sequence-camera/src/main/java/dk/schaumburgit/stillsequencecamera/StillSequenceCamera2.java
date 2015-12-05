@@ -1,14 +1,11 @@
 package dk.schaumburgit.stillsequencecamera;
 
-import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.DialogFragment;
-import android.app.Fragment;
 import android.content.Context;
 import android.content.DialogInterface;
-import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
@@ -26,10 +23,11 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.support.annotation.NonNull;
+//import android.support.annotation.NonNull;
 import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
@@ -42,6 +40,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -59,47 +58,27 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
     private Activity getActivity() {
         return mActivity;
     }
+
+    private int mMinPixels;
     private int[] mPrioritizedFormats;
     private int mOutputFormat;
 
-    public StillSequenceCamera2(Activity activity, TextureView textureView, int[] prioritizedImageFormats) {
+    public StillSequenceCamera2(Activity activity, TextureView textureView, int[] prioritizedImageFormats, int minPixels) {
+        this.mMinPixels = minPixels;
+        if (mMinPixels < 1024*768)
+            mMinPixels = 1024*768;
+
         this.mPrioritizedFormats = prioritizedImageFormats;
         this.mActivity = activity;
         this.mTextureView = textureView;
-        if (this.mTextureView == null) {
-            mPreviewImageReader = ImageReader.newInstance(320, 240, ImageFormat.YUV_420_888, 2); //fps * 10 min
-            mPreviewImageReader.setOnImageAvailableListener(
-                    new ImageReader.OnImageAvailableListener() {
-                        @Override
-                        public void onImageAvailable(ImageReader reader) {
-                            Image image = reader.acquireLatestImage();
-                            if (image != null)
-                                image.close();
-                        }
-                    }, null);
-        }
-    }
-
-    @Override
-    public void StartFocus() {
-        onResume();
-    }
-
-    private StateChangeListener mStateChangeListener;
-    @Override
-    public void setStateChangeListener(StateChangeListener listener)
-    {
-        mStateChangeListener = listener;
-    }
-
-    @Override
-    public boolean IsFocused() {
-        return false;
     }
 
     @Override
     public void StartCapture() {
-        lockFocus();
+        startFocusThread();
+        // This will send the camera into the Setup state, from which it will eventually
+        // move into the Focusing and then Capturing states:
+        startSetup();
     }
 
     @Override
@@ -112,22 +91,31 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
         //    ...now do any lengthy processing
         // }
 
-        // Important for performance: start the new capture as
-        // soon as possible:
-        // (capture is done using dedicated hardware, so it might
-        // as well run while the CPU-intensive image processing
-        // is performed in callImageListener)
-        Image image = mImageReader.acquireLatestImage();
-        if (image != null) {
-            captureNext();
+        try {
+            // Important for performance: start the new capture as
+            // soon as possible:
+            // (capture is done using dedicated hardware, so it might
+            // as well run while the CPU-intensive image processing
+            // is performed in callImageListener)
+            Image image = mImageReader.acquireLatestImage();
+            if (image != null) {
+                captureNext();
+            }
+            return image;
+        } catch (Exception e) {
+            return null;
         }
-        return image;
     }
 
     @Override
     public void StopCapture() {
-        unlockFocus();
-        onPause();
+        new Thread(new Runnable() {
+            public void run() {
+                //unlockFocus();
+                closeCamera();
+                stopFocusThread();
+            }
+        }).start();
     }
 
     private OnImageAvailableListener mImageListener = null;
@@ -154,14 +142,15 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
 
 
     private void onResume() {
-        startFocusThread();
-        startOpenCamera();
+        // We used to auto-start a lot here (open camera, start focusing, etc),
+        // but have moved to requiring an explicit call to startCapture.
+
+        // startCapture();
     }
 
     //@Override
     public void onPause() {
-        closeCamera();
-        stopFocusThread();
+        StopCapture();
     }
 
     private HandlerThread mFocusThread;
@@ -179,31 +168,33 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
      * Stops the background thread and its {@link Handler}.
      */
     private void stopFocusThread() {
-        mFocusThread.quitSafely();
+        if (mFocusThread == null)
+            return;
         try {
+            mFocusThread.quitSafely();
             mFocusThread.join();
             mFocusThread = null;
             mFocusHandler = null;
-        } catch (InterruptedException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     //*********************************************************************
-    //* Open and initialize camera:
-    //* ===========================
+    //* Setup phase: Open and initialize camera:
+    //* =======================================
     //* The entry points to this section are
-    //*   openCamera()                      - called from onResume()
+    //*   startSetup()                      - called from onResume()
     //*   closeCamera()                     - called from onPause()
     //*   configureTransform(width, height) - called whenever the preview
-    //*                                       window resizes
+    //*                                       window (if any) resizes
     //*********************************************************************
 
     private String mCameraId;
     private CameraDevice mCameraDevice;
     private Semaphore mCameraOpenCloseLock = new Semaphore(1);
 
-    private void startOpenCamera() {
+    private void startSetup() {
         if (mTextureView == null) {
             openCamera();
         } else if (mTextureView.isAvailable()) {
@@ -237,29 +228,12 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
     }
 
     private void openCamera() {
-        //if (getActivity().checkSelfPermission(Manifest.permission.CAMERA)
-        //        != PackageManager.PERMISSION_GRANTED) {
-        //    throw new UnsupportedOperationException("CAMERA permission required");
-        //}
-
-        int width;
-        int height;
-        if (mTextureView != null)
-        {
-            width = mTextureView.getWidth();
-            height = mTextureView.getHeight();
-        }
-        else
-        {
-            width = mPreviewImageReader.getWidth();
-            height = mPreviewImageReader.getHeight();
-        }
-
-        setUpCameraOutputs(width, height);
+        setUpCameraOutputs();
         Activity activity = getActivity();
         CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
         try {
             if (!mCameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
+                closeCameraOutputs(); // reverse of setUpCameraOutputs()
                 throw new RuntimeException("Time out waiting to lock camera opening.");
             }
             // Open camera and hook into our camera state machine:
@@ -279,11 +253,8 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
 
     /**
      * Sets up member variables related to camera.
-     *
-     * @param width  The width of available size for camera preview
-     * @param height The height of available size for camera preview
      */
-    private void setUpCameraOutputs(int width, int height) {
+    private void setUpCameraOutputs() {
         Activity activity = getActivity();
         CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
 
@@ -351,11 +322,11 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
             // Danger, W.R.! Attempting to use too large a preview size could  exceed the camera
             // bus' bandwidth limitation, resulting in gorgeous previews but the storage of
             // garbage capture data.
-            mPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class),
-                    width, height, captureSize);
-
             // We fit the aspect ratio of TextureView to the size of preview we picked.
             if (mTextureView != null) {
+                mPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class),
+                        mTextureView.getWidth(), mTextureView.getHeight(), captureSize);
+
                 int orientation = getActivity().getResources().getConfiguration().orientation;
                 if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
                     //mTextureView.setAspectRatio(
@@ -377,6 +348,14 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
         }
     }
 
+    /**
+     * Clean up after setUpCameraOutputs
+     */
+    private void closeCameraOutputs()
+    {
+        //mImageReader.setOnImageAvailableListener(null, null);
+        mImageReader = null;
+    }
     /**
      * Configures the necessary {@link android.graphics.Matrix} transformation to `mTextureView`.
      * This method should be called after the camera preview size is determined in
@@ -417,7 +396,7 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
     private final CameraDevice.StateCallback mStateCallback = new CameraDevice.StateCallback() {
 
         @Override
-        public void onOpened(@NonNull CameraDevice cameraDevice) {
+        public void onOpened( CameraDevice cameraDevice) {
             Log.d(TAG, "CameraDevice opened");
             // This method is called when the camera is opened.  We start camera preview here.
             mCameraOpenCloseLock.release();
@@ -426,14 +405,14 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
         }
 
         @Override
-        public void onDisconnected(@NonNull CameraDevice cameraDevice) {
+        public void onDisconnected( CameraDevice cameraDevice) {
             mCameraOpenCloseLock.release();
             cameraDevice.close();
             mCameraDevice = null;
         }
 
         @Override
-        public void onError(@NonNull CameraDevice cameraDevice, int error) {
+        public void onError( CameraDevice cameraDevice, int error) {
             Log.e(TAG, "CameraDevice.StateCallback.onError(" + error + ")");
             mCameraOpenCloseLock.release();
             cameraDevice.close();
@@ -452,8 +431,12 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
     private void closeCamera() {
         try {
             mCameraOpenCloseLock.acquire();
+            mIsCapturing = false;
             if (null != mCaptureSession) {
                 mCaptureSession.close();
+                try {
+                    mCaptureSession.stopRepeating();
+                } catch (Exception e) {};
                 mCaptureSession = null;
             }
             if (null != mCameraDevice) {
@@ -473,6 +456,7 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
         } finally {
             mCameraOpenCloseLock.release();
         }
+        onCameraStateChanged();
     }
 
     //*********************************************************************
@@ -527,6 +511,16 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                 // This is the output Surface we need to start preview.
                 surface = new Surface(texture);
             } else {
+                mPreviewImageReader = ImageReader.newInstance(320, 240, ImageFormat.YUV_420_888, 2); //fps * 10 min
+                mPreviewImageReader.setOnImageAvailableListener(
+                        new ImageReader.OnImageAvailableListener() {
+                            @Override
+                            public void onImageAvailable(ImageReader reader) {
+                                Image image = reader.acquireLatestImage();
+                                if (image != null)
+                                    image.close();
+                            }
+                        }, null);
                 surface = mPreviewImageReader.getSurface();
             }
 
@@ -541,7 +535,7 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                     new CameraCaptureSession.StateCallback() {
 
                         @Override
-                        public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
+                        public void onConfigured( CameraCaptureSession cameraCaptureSession) {
                             // The camera is already closed
                             if (null == mCameraDevice) {
                                 return;
@@ -563,22 +557,37 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                                 mPreviewRequest = mPreviewRequestBuilder.build();
                                 mCaptureSession.setRepeatingRequest(mPreviewRequest,
                                         mCaptureCallback, mFocusHandler);
-                            } catch (CameraAccessException e) {
+                                StillSequenceCamera2.this.onSetupDone();
+                            } catch (Exception e) {
+                                mCaptureSession = null;
+                                StillSequenceCamera2.this.onSetupFailed();
                                 e.printStackTrace();
                             }
                         }
 
                         @Override
                         public void onConfigureFailed(
-                                @NonNull CameraCaptureSession cameraCaptureSession) {
+                                 CameraCaptureSession cameraCaptureSession) {
+                            StillSequenceCamera2.this.onSetupFailed();
                             Log.e(TAG, "Failed");
                         }
                     }, null
             );
-        } catch (CameraAccessException e) {
+        } catch (Exception e) {
+            mPreviewRequestBuilder = null;
+            //mPreviewImageReader.setOnImageAvailableListener(null, null);
+            mPreviewImageReader = null;
             e.printStackTrace();
         }
     }
+
+    private void onSetupDone()
+    {
+        startFocusing();
+    }
+
+    private void onSetupFailed()
+    {}
 
     //*********************************************************************
     //* The AF/AE state machine:
@@ -592,7 +601,7 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
     //*
     //* Entry points into this section:
     //*   - Instantiated (STATE_PREVIEW) when this class is instantiated
-    //*   - lockFocus() starts the search for focus and exposure locks:
+    //*   - startFocusing() starts the search for focus and exposure locks:
     //*     - every time the repeating preview request mPreviewRequest
     //*       (started by createCameraPreviewSession() in section "Start the
     //*       preview") captures an image, the state machine polls the AF and
@@ -624,16 +633,21 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
     /**
      * Lock the focus as the first step for a still image capture.
      */
-    private void lockFocus() {
+    private void startFocusing() {
         try {
+            mAutoFocusState = null;
+            mAutoExposureState = null;
+
             // This is how to tell the camera to lock focus.
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
                     CameraMetadata.CONTROL_AF_TRIGGER_START);
+
             // Tell #mCaptureCallback to wait for the lock.
             mState = STATE_WAITING_LOCK;
-            //nCapturedFiles = 0;
             mCaptureSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback,
                     mFocusHandler);
+
+            onCameraStateChanged();
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -646,21 +660,33 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
     private void unlockFocus() {
         try {
             // Reset the auto-focus trigger
+            mAutoFocusState = null;
+
+            if (mPreviewRequestBuilder == null)
+                return;
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
                     CameraMetadata.CONTROL_AF_TRIGGER_CANCEL);
+            mAutoExposureState = null;
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE,
                     CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
+
+            if (mCaptureSession == null)
+                return;
             mCaptureSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback,
                     mFocusHandler);
             // After this, the camera will go back to the normal state of preview.
             mState = STATE_PREVIEW;
             mCaptureSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback,
                     mFocusHandler);
-        } catch (CameraAccessException e) {
+
+            onCameraStateChanged();
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
+    private Integer mAutoFocusState = null; // From CaptureResult.get(CaptureResult.CONTROL_AF_STATE)
+    private Integer mAutoExposureState = null; // From CaptureResult.get(CaptureResult.CONTROL_AE_STATE)
     /**
      * A {@link CameraCaptureSession.CaptureCallback} that handles events related to image capture.
      */
@@ -674,56 +700,57 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                     break;
                 }
                 case STATE_WAITING_LOCK: {
-                    Integer afState = result.get(CaptureResult.CONTROL_AF_STATE);
-                    if (afState == null) {
-                        DebugCapture();
-                    } else if (CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED == afState ||
-                            CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED == afState) {
+                    mAutoFocusState = result.get(CaptureResult.CONTROL_AF_STATE);
+                    if (mAutoFocusState == null) {
+                        StillSequenceCamera2.this.onFocusingDone();
+                    } else if (CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED == mAutoFocusState ||
+                            CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED == mAutoFocusState) {
                         // CONTROL_AE_STATE can be null on some devices
-                        Integer aeState = result.get(CaptureResult.CONTROL_AE_STATE);
-                        if (aeState == null ||
-                                aeState == CaptureResult.CONTROL_AE_STATE_CONVERGED) {
-                            mState = STATE_PICTURE_TAKEN;
-                            DebugCapture();
+                        mAutoExposureState = result.get(CaptureResult.CONTROL_AE_STATE);
+                        if (mAutoExposureState == null ||
+                                mAutoExposureState == CaptureResult.CONTROL_AE_STATE_CONVERGED) {
+                            StillSequenceCamera2.this.onFocusingDone();
                         } else {
                             runPrecaptureSequence();
                         }
                     }
+                    onCameraStateChanged();
                     break;
                 }
                 case STATE_WAITING_PRECAPTURE: {
                     // CONTROL_AE_STATE can be null on some devices
-                    Integer aeState = result.get(CaptureResult.CONTROL_AE_STATE);
-                    if (aeState == null ||
-                            aeState == CaptureResult.CONTROL_AE_STATE_PRECAPTURE ||
-                            aeState == CaptureRequest.CONTROL_AE_STATE_FLASH_REQUIRED) {
+                    mAutoExposureState = result.get(CaptureResult.CONTROL_AE_STATE);
+                    if (mAutoExposureState == null ||
+                            mAutoExposureState == CaptureResult.CONTROL_AE_STATE_PRECAPTURE ||
+                            mAutoExposureState == CaptureRequest.CONTROL_AE_STATE_FLASH_REQUIRED) {
                         mState = STATE_WAITING_NON_PRECAPTURE;
                     }
+                    onCameraStateChanged();
                     break;
                 }
                 case STATE_WAITING_NON_PRECAPTURE: {
                     // CONTROL_AE_STATE can be null on some devices
-                    Integer aeState = result.get(CaptureResult.CONTROL_AE_STATE);
-                    if (aeState == null || aeState != CaptureResult.CONTROL_AE_STATE_PRECAPTURE) {
-                        mState = STATE_PICTURE_TAKEN;
-                        DebugCapture();
+                    mAutoExposureState = result.get(CaptureResult.CONTROL_AE_STATE);
+                    if (mAutoExposureState == null || mAutoExposureState != CaptureResult.CONTROL_AE_STATE_PRECAPTURE) {
+                        StillSequenceCamera2.this.onFocusingDone();
                     }
+                    onCameraStateChanged();
                     break;
                 }
             }
         }
 
         @Override
-        public void onCaptureProgressed(@NonNull CameraCaptureSession session,
-                                        @NonNull CaptureRequest request,
-                                        @NonNull CaptureResult partialResult) {
+        public void onCaptureProgressed( CameraCaptureSession session,
+                                         CaptureRequest request,
+                                         CaptureResult partialResult) {
             process(partialResult);
         }
 
         @Override
-        public void onCaptureCompleted(@NonNull CameraCaptureSession session,
-                                       @NonNull CaptureRequest request,
-                                       @NonNull TotalCaptureResult result) {
+        public void onCaptureCompleted( CameraCaptureSession session,
+                                        CaptureRequest request,
+                                        TotalCaptureResult result) {
             process(result);
         }
 
@@ -731,7 +758,7 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
 
     /**
      * Run the precapture sequence for capturing a still image. This method should be called when
-     * we get a response in {@link #mCaptureCallback} from {@link #lockFocus()}.
+     * we get a response in {@link #mCaptureCallback} from {@link #startFocusing()}.
      */
     private void runPrecaptureSequence() {
         try {
@@ -747,18 +774,44 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
         }
     }
 
+    private void onFocusingDone()
+    {
+        mState = STATE_PICTURE_TAKEN;
+        startCapturePhase();
+    }
+
+    //*********************************************************************
+    //* Sending camera state change events:
+    //* ===================================
+    //*
+    //*********************************************************************
+
+    @Override
+    public void setCameraStateChangeListener(CameraStateChangeListener listener)
+    {
+        mCameraStateChangeListener = listener;
+    }
+
+    private CameraStateChangeListener mCameraStateChangeListener;
+    private void onCameraStateChanged() {
+        final CameraStateChangeListener tmp = mCameraStateChangeListener;
+        if (tmp != null)
+            AsyncTask.execute(new Runnable() {
+                @Override
+                public void run() {
+                    tmp.onCameraStateChanged(mAutoFocusState, mAutoExposureState, mIsCapturing);
+                }
+            });
+    }
+
     //*********************************************************************
     //* Still image capture:
     //* ====================
     //*
     //*********************************************************************
+    private boolean mIsCapturing = false;
 
-    private void DebugCapture() {
-        captureStillPicture();
-        //startCaptureStillPictures();
-    }
-
-    private void captureStillPicture() {
+    private void startCapturePhase() {
         try {
             final Activity activity = getActivity();
             if (null == activity || null == mCameraDevice) {
@@ -781,7 +834,11 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
 
             mCaptureSession.stopRepeating();
             mStillCaptureRequest = captureBuilder.build();
+
             captureNext();
+
+            mIsCapturing = true;
+            onCameraStateChanged();
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -789,10 +846,21 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
 
     private CaptureRequest mStillCaptureRequest = null;
     private void captureNext() {
+        if (mCaptureSession == null) {
+            return;
+        }
         try {
+            mCameraOpenCloseLock.acquire();
             mCaptureSession.capture(mStillCaptureRequest, null, null);
+        } catch (IllegalStateException e) {
+            // this happens if captureNext is called at the same time as closeCamera()
+            // calls mCaptureSession.close()
+        } catch (InterruptedException e) {
+            // hmm...probably part of app shutdown, so we'll just go quitly
         } catch (CameraAccessException e) {
             e.printStackTrace();
+        } finally {
+            mCameraOpenCloseLock.release();
         }
     }
 
