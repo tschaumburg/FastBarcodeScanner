@@ -12,12 +12,12 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Vibrator;
 import android.support.annotation.NonNull;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
 import android.support.v13.app.FragmentCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
+import android.view.SurfaceView;
+import android.view.TextureView;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -26,12 +26,12 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import dk.schaumburgit.fastbarcodescanner.FastBarcodeScanner;
-import dk.schaumburgit.stillsequencecamera.StillSequenceCamera2;
 
 public class MainActivity extends AppCompatActivity
-        implements FastBarcodeScanner.BarcodeDetectedListener, FastBarcodeScanner.ScanningStateListener
+        implements FastBarcodeScanner.BarcodeDetectedListener//, FastBarcodeScanner.ScanningStateListener
 {
     private static final String TAG = "FastBarcodeScannerDemo";
+    private SurfaceView mSurfaceView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,6 +55,8 @@ public class MainActivity extends AppCompatActivity
                 stopScan();
             }
         });
+
+        mSurfaceView = (SurfaceView)findViewById(R.id.surfaceView);
     }
 
     @Override
@@ -84,8 +86,9 @@ public class MainActivity extends AppCompatActivity
         requestCameraPermission();
 
         if (mScanner == null) {
-            mScanner = new FastBarcodeScanner(this, null);
-            mScanner.setScanningStateListener(this);
+            mScanner = new FastBarcodeScanner(this, (TextureView)null);
+            //mScanner = new FastBarcodeScanner(this, mSurfaceView);
+            //mScanner.setScanningStateListener(this);
             mScanner.setBarcodeListener(this);
         }
 
@@ -146,51 +149,6 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    @Override
-    public void onFocusStateChanged(int focusState)
-    {
-        final TextView focusView = (TextView) findViewById(R.id.textView2);
-        String focus = "unknown";
-        switch (focusState)
-        {
-            case FastBarcodeScanner.ScanningStateListener.FOCUS_IDLE:
-                focus = "idle";
-                break;
-            case FastBarcodeScanner.ScanningStateListener.FOCUS_FOCUSING:
-                focus = "focusing...";
-                break;
-            case FastBarcodeScanner.ScanningStateListener.FOCUS_FOCUSED:
-                focus = "focus";
-                break;
-            case FastBarcodeScanner.ScanningStateListener.FOCUS_UNFOCUSED:
-                focus = "no focus";
-                break;
-            case FastBarcodeScanner.ScanningStateListener.FOCUS_LOCKED:
-                focus = "locked!";
-                break;
-            case FastBarcodeScanner.ScanningStateListener.FOCUS_FAILED:
-                focus = "failed!";
-                break;
-            default:
-                focus = "unknown (" + focus + ")";
-                break;
-        }
-        final String finalFocus = focus;
-        this.runOnUiThread(
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        focusView.setText(finalFocus);
-                    }
-                }
-        );
-    }
-
-    @Override
-    public void onScanSpeedChanged(int fps)
-    {
-
-    }
 
     private static final int REQUEST_CAMERA_PERMISSION = 1;
     private static final String FRAGMENT_DIALOG = "dialog";
@@ -210,7 +168,7 @@ public class MainActivity extends AppCompatActivity
                                            @NonNull int[] grantResults) {
         if (requestCode == REQUEST_CAMERA_PERMISSION) {
             if (grantResults.length != 1 || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
-                StillSequenceCamera2.ErrorDialog.newInstance(getString(R.string.request_permission))
+                ErrorDialog.newInstance(getString(R.string.request_permission))
                         .show(this.getFragmentManager(), FRAGMENT_DIALOG);
             }
         } else {

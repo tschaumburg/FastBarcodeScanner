@@ -19,7 +19,6 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
-import android.os.AsyncTask;
 import android.os.Handler;
 import android.util.Log;
 import android.util.Size;
@@ -32,7 +31,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Created by Thomas on 05-12-2015.
+ * Created by Thomas Schaumburg on 05-12-2015.
  */
 public class FocusManager {
     private static final String TAG = "FocusManager";
@@ -148,7 +147,8 @@ public class FocusManager {
 
     public void close() {
     }
-    public Surface getPreviewSurface() {
+
+    public Surface getSurface() {
         return mPreviewSurface;
     }
 
@@ -316,7 +316,7 @@ public class FocusManager {
             // We set up a CaptureRequest.Builder with the output Surface.
             mPreviewRequestBuilder
                     = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
-            mPreviewRequestBuilder.addTarget(getPreviewSurface());
+            mPreviewRequestBuilder.addTarget(getSurface());
 
             // Auto focus should be continuous for camera preview.
             mPreviewRequestBuilder.set(

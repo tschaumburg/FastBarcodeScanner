@@ -1,6 +1,6 @@
 package dk.schaumburgit.fastbarcodescanner;
 /*
- * Copyright 2014 The Android Open Source Project
+ * Copyright 2015 Schaumburg IT
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,25 +15,29 @@ package dk.schaumburgit.fastbarcodescanner;
  * limitations under the License.
  */
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.hardware.camera2.CaptureResult;
 import android.media.Image;
 import android.util.Log;
+import android.view.SurfaceView;
 import android.view.TextureView;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.security.InvalidParameterException;
 import java.sql.Timestamp;
 import java.util.Date;
 
 import dk.schaumburgit.stillsequencecamera.IStillSequenceCamera;
-import dk.schaumburgit.stillsequencecamera.StillSequenceCamera2;
+import dk.schaumburgit.stillsequencecamera.camera.StillSequenceCamera;
+import dk.schaumburgit.stillsequencecamera.camera2.StillSequenceCamera2;
 import dk.schaumburgit.trackingbarcodescanner.TrackingBarcodeScanner;
 
 public class FastBarcodeScanner
-        implements IStillSequenceCamera.OnImageAvailableListener, IStillSequenceCamera.CameraStateChangeListener
+        implements IStillSequenceCamera.OnImageAvailableListener//, IStillSequenceCamera.CameraStateChangeListener
 {
     /**
      * Tag for the {@link Log}.
@@ -47,17 +51,54 @@ public class FastBarcodeScanner
 
     private IStillSequenceCamera mImageSource;
     private TrackingBarcodeScanner mBarcodeFinder;
+
+    /**
+     * Creates a FastBarcodeScanner using the given TextureView for preview.
+     *
+     * FastBarcodeScanner instances created using this constructor will use
+     * the new, much more efficient Camera2 API for controlling the camera.
+     *
+     * This boosts performance by a factor 5x - but it only works on Android
+     * Lollipop (API version 21) and later.
+     *
+     * As an alternative, consider using the #FastBarcodeScanner constructor
+     * which will create a FastBarcodeScanner working on older versions of
+     * Android too - albeit much less efficiently.
+     * @param activity Non null
+     * @param textureView Nullable
+     */
+    @TargetApi(21)
     public FastBarcodeScanner(Activity activity, TextureView textureView) {
+        if (activity == null)
+            throw new InvalidParameterException("activity cannot be null");
+
         this.mActivity = activity;
         this.mBarcodeFinder = new TrackingBarcodeScanner();
         this.mImageSource = new StillSequenceCamera2(activity, textureView, mBarcodeFinder.GetPreferredFormats(), 1024*768);
-        this.mImageSource.setImageListener(this);
+        this.mImageSource.setup();
+    }
+
+    /**
+     *
+     * @param activity Non-null
+     * @param surfaceView Non-null
+     */
+    public FastBarcodeScanner(Activity activity, SurfaceView surfaceView) {
+        if (activity == null)
+            throw new InvalidParameterException("activity cannot be null");
+
+        if (surfaceView == null)
+            throw new InvalidParameterException("surfaceView cannot be null");
+
+        this.mActivity = activity;
+        this.mBarcodeFinder = new TrackingBarcodeScanner();
+        this.mImageSource = new StillSequenceCamera(activity, surfaceView);
         this.mImageSource.setup();
     }
 
     public void StartScan()
     {
-        mImageSource.start();
+        mImageSource.start(this);
     }
 
     public void StopScan()
@@ -71,31 +112,9 @@ public class FastBarcodeScanner
     }
 
     @Override
-    public void onImageAvailable() {
-        Image image = mImageSource.GetLatestImage();
-
-        if (image == null)
-            return;
-
+    public void onImageAvailable(int format, byte[] bytes, int width, int height) {
         // Get the image data (we requested JPEG) into a byte buffer:
         Date first = new Date();
-        byte[] bytes = null;
-        int format = image.getFormat();
-        int width = image.getWidth();
-        int height = image.getHeight();
-        try {
-            Image.Plane plane = image.getPlanes()[0];
-            ByteBuffer buffer = plane.getBuffer();
-            bytes = new byte[buffer.remaining()];
-            buffer.get(bytes);
-        } catch (Exception e) {
-            Log.e(TAG, "Error extracting image", e);
-            return;
-        } finally {
-            // Important: free the image as soon as possible,
-            // thus making room for a new capture to begin:
-            image.close();
-        }
 
         // Decode the image:
         Date second = new Date();
@@ -223,101 +242,6 @@ public class FastBarcodeScanner
          * @param barcode the barcode detected.
          */
         void onBarcodeAvailable(String barcode);
-    }
-
-
-    //*********************************************************************
-    //*********************************************************************
-
-    /**
-     * Callback interface for being notified about changes in the scanner state.
-     */
-    public interface ScanningStateListener {
-        public static int FOCUS_IDLE = 0;
-        public static int FOCUS_FOCUSING = 1;
-        public static int FOCUS_FOCUSED = 2; // found focus, but may retry any time
-        public static int FOCUS_UNFOCUSED = 3; // failed to focus, but may retry any time
-        public static int FOCUS_FAILED = 4;
-        public static int FOCUS_LOCKED = 5;
-        void onFocusStateChanged(int focusState);
-        void onScanSpeedChanged(int fps);
-    }
-
-    private ScanningStateListener mScanningStateListener = null;
-    public void setScanningStateListener(ScanningStateListener listener)
-    {
-        if (mScanningStateListener == listener)
-            return;
-
-        mScanningStateListener = listener;
-
-        if (mScanningStateListener != null)
-            mImageSource.setCameraStateChangeListener(this);
-        else
-            mImageSource.setCameraStateChangeListener(null);
-    }
-
-    public void onCameraStateChanged(Integer autoFocusState, Integer autoExposureState, boolean isCapturing)
-    {
-        ScanningStateListener tmp = mScanningStateListener;
-        if (tmp != null) {
-            int focusState = ScanningStateListener.FOCUS_IDLE;
-            if (autoFocusState != null) {
-                switch (autoFocusState) {
-                    case CaptureResult.CONTROL_AF_STATE_INACTIVE:
-                        focusState = ScanningStateListener.FOCUS_IDLE;
-                        break;
-                    case CaptureResult.CONTROL_AF_STATE_PASSIVE_SCAN:
-                    case CaptureResult.CONTROL_AF_STATE_ACTIVE_SCAN:
-                        focusState = ScanningStateListener.FOCUS_FOCUSING;
-                        break;
-                    case CaptureResult.CONTROL_AF_STATE_PASSIVE_FOCUSED:
-                        focusState = ScanningStateListener.FOCUS_FOCUSED; // focused, but may refocus soon
-                        break;
-                    case CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED:
-                        focusState = ScanningStateListener.FOCUS_LOCKED;
-                        break;
-                    case CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED:
-                        focusState = ScanningStateListener.FOCUS_FAILED;
-                        break;
-                    case CaptureResult.CONTROL_AF_STATE_PASSIVE_UNFOCUSED:
-                        focusState = ScanningStateListener.FOCUS_UNFOCUSED; // unfocused, but may refocus soon
-                        break;
-                    default:
-                        break;
-                }
-            }
-
-            tmp.onFocusStateChanged(focusState);
-        }
-    }
-
-    private int mScanSpeed = 0;
-    public int getScanSpeed()
-    {
-        return mScanSpeed;
-    }
-    private void setScanSpeed(int fps)
-    {
-        mScanSpeed = fps;
-
-        ScanningStateListener tmp = mScanningStateListener;
-        if (tmp != null)
-            tmp.onScanSpeedChanged(fps);
-    }
-
-    private int mFocusState = ScanningStateListener.FOCUS_IDLE;
-    public int getFocusState()
-    {
-        return mFocusState;
-    }
-    private void setFocusState(int focusState)
-    {
-        mFocusState = focusState;
-
-        ScanningStateListener tmp = mScanningStateListener;
-        if (tmp != null)
-            tmp.onScanSpeedChanged(focusState);
     }
 }
 
