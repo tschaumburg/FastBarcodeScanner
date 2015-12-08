@@ -27,8 +27,10 @@ public interface IStillSequenceCamera {
         void onCameraStateChanged(Integer autoFocusState, Integer autoExposureState, boolean isCapturing);
     }
 
-    void StartCapture();
-    void StopCapture();
+    void setup();
+    void start();
+    void stop();
+    void close();
 
     /**
      * Gets the latest capture image (or null if none are available).

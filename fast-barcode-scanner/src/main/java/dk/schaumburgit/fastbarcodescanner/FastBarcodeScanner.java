@@ -52,16 +52,22 @@ public class FastBarcodeScanner
         this.mBarcodeFinder = new TrackingBarcodeScanner();
         this.mImageSource = new StillSequenceCamera2(activity, textureView, mBarcodeFinder.GetPreferredFormats(), 1024*768);
         this.mImageSource.setImageListener(this);
+        this.mImageSource.setup();
     }
 
     public void StartScan()
     {
-        mImageSource.StartCapture();
+        mImageSource.start();
     }
 
     public void StopScan()
     {
-        mImageSource.StopCapture();
+        mImageSource.stop();
+    }
+
+    public void close()
+    {
+        this.mImageSource.close();
     }
 
     @Override
@@ -95,7 +101,6 @@ public class FastBarcodeScanner
         Date second = new Date();
         try {
             String newBarcode = mBarcodeFinder.find(format, width, height, bytes);
-            Log.i(TAG, "Looking in format=" + format + ", width=" + width + ", height=" + height);
             Log.i(TAG, "Found barcode: " + newBarcode);
             Date third = new Date();
 
