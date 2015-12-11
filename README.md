@@ -35,29 +35,48 @@ But this is just a demo app, so we'll keep it simple: there's a start and a stop
 (Caveat: one thing you'll notice is that the app doesn't re-focus during scanning, so you'll need to keep a fairly constant scanning distance. This
 makes scanning faster and smoother - no time wasted re-focusing - but requires a fairly rigid scanning setup. It's easily changed in your own app)
  
-Using the fastbarcodescanner.aar library
+##Using the fastbarcodescanner.aar library
  
-The fastbarcodescanner.aar library has a very simple interface. Here's how you use it:
+The fastbarcodescanner.aar library has a very simple API:
  
 1. Instantiate a FastBarcodeScanner using one of the following constructors (depending on the Android version you're running):
  
    Android Lollipop (API level 21) or later:
+
     FastBarcodeScanner fbs = new FastBarcodeScanner(activity); // scan without any on-screen preview
     FastBarcodeScanner fbs = new FastBarcodeScanner(activity, textureView); // scan with preview displayed in textureView
  
    Earlier Android versions:
+
     FastBarcodeScanner fbs = new FastBarcodeScanner(activity, surfaceView); // scan with preview displayed in surfaceView
  
 2. Start scanning:
  
     fbs.StartScan(
-       new BarcodeListener {
+       new BarcodeDetectedListener {
           @override
-          onBarcodeFound(
+          onBarcodeAvailable(String barcode) {
+             ...*(see below)*
+          }
+          @override
+          onError(Exception error) {
+             ...*(see below)*
+          }
+       },
+       handler
+    );
  
- 
- 
- 
+3. The code in onBarcodeAvailable() and onError() above will be called using the thread wrapped by
+   the handler parameter. What you do with the barcode is up to you - the FastBarcodeScanner is
+   already busily looking for the next barcode on its own, internal thread.
+
+4. When you're done, simply call stopScan():
+
+    fbs.stopScan();
+   
+   This will stop all the internal threads, and (most importantly) free the camera
+   
+5. A well-behaved app will implement onPause() and onResume() to call stopScan() and startScan(), thus freeing e.g. the camera for use by other apps. 
  
  
  
