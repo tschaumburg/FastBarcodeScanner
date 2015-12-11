@@ -108,7 +108,7 @@ To have the best of both worlds, write your code to test for the precense of Cam
 ```
 
 ###Fixed-distance or variable-distance scanning
-If the items you are scanning are always at a *fixed distance* from the camera you only have to focus the camera once at the beginning of the scanning session - this gives much higher speed and better results.
+If the items you are scanning are always at a *fixed distance* from the camera, you only have to focus the camera once at the beginning of the scanning session. This gives much higher speed and better results.
 
 Examples of fixed-distance scanning scenarios include ticket verification, document identification, library book scanners, some forms of inventory taking: all scenarios where you can mount the camera at a fixed location, and move the barcoded items past:
 
@@ -124,8 +124,21 @@ The focus when writing this library has been overwhelmingly on the fixed-distanc
 
 So feel free to suggest (or make) improvements!
  
-###Fixed-distance scanning: further optimizations 
- 
+###Fixed-distance scanning: further optimizations
+
+When scanning the captured images, FastBarcodeScanner uses a *tracking* approach described for the TrackingBarcodeScanner library: it first looks in the place where it previously found a barcode - only if that doesn't succeed does it look at the whole image.
+
+Because the first scan is 3-5 times faster than the second, tracking loss is relatively expensive.
+
+And when you are replacing one scanned item with the next, there's a brief interval with no barcode in sight - causing precisely this tracking loss!
+
+Our fix for this has been to 
+
+1. Construct the scanning cradle so barcodes are always in roughly the same location
+2. Glue a dummy barcode to the scanning surface exactly where the real barcodes will be - this prevents tracking loss when replacing items
+
+This naturally assumes that all items being scanned are roughly identical, and have identically placed barcodes.
+
 ## Previous text
 
 To include fast barcode scanning in you app, include the fast-barcode-scanner library in your app - if you're using gradle, here's the line to use:
