@@ -89,14 +89,13 @@ public class MainActivity extends AppCompatActivity
             mScanner = new FastBarcodeScanner(this, (TextureView)null);
             //mScanner = new FastBarcodeScanner(this, mSurfaceView);
             //mScanner.setScanningStateListener(this);
-            mScanner.setBarcodeListener(this);
         }
 
         Button startButton = (Button)findViewById(R.id.start);
         Button stopButton = (Button)findViewById(R.id.button3);
 
         startButton.setEnabled(false);
-        mScanner.StartScan();
+        mScanner.StartScan(this, null);
         stopButton.setEnabled(true);
     }
 
@@ -147,6 +146,11 @@ public class MainActivity extends AppCompatActivity
                 v.vibrate(100);
             }
         }
+    }
+
+    @Override
+    public void onError(Exception error) {
+
     }
 
 

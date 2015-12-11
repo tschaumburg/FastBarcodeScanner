@@ -46,20 +46,49 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
     private FocusManager mFocusManager;
     private CaptureManager mImageCapture;
 
+    private final static int CLOSED = 0;
+    private final static int INITIALIZED = 1;
+    private final static int CAPTURING = 2;
+    private final static int CHANGING = 3;
+    private final static int FOCUSING = 4;
+    private final static int FAILED = 5;
+    private final static int ERROR = 6;
+    private int mState = CLOSED;
+
     /**
+     * Creates a headless #StillSequenceCamera2
      *
-     * @param activity
+     * @param activity The activity associated with the calling app.
      */
     public StillSequenceCamera2(Activity activity)
     {
         this(activity, null, new int[] {ImageFormat.JPEG}, 1024*768);
     }
 
+    /**
+     * Creates a headless #StillSequenceCamera2
+     *
+     * @param activity The activity associated with the calling app.
+     * @param prioritizedImageFormats The preferred formats to capture images in
+     *                                (see #ImageFormat for values)
+     * @param minPixels The preferred minimum number of pixels in the captured images
+     *                  (i.e. width*height)
+     */
     public StillSequenceCamera2(Activity activity, int[] prioritizedImageFormats, int minPixels)
     {
         this(activity, null, prioritizedImageFormats, minPixels);
     }
 
+    /**
+     * Creates a #StillSequenceCamera2 with a preview
+     *
+     * @param activity The activity associated with the calling app.
+     * @param prioritizedImageFormats The preferred formats to capture images in
+     *                                (see #ImageFormat for values)
+     * @param minPixels The preferred minimum number of pixels in the captured images
+     *                  (i.e. width*height)
+     * @param textureView The #TextureView to display the preview in (use null for headless scanning)
+     */
     public StillSequenceCamera2(Activity activity, TextureView textureView, int[] prioritizedImageFormats, int minPixels)
     {
         if (activity==null)
@@ -72,10 +101,25 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
 
         mFocusManager = new FocusManager(activity, textureView);
         mImageCapture = new CaptureManager(activity, prioritizedImageFormats, minPixels);
+
+        mState = CLOSED;
     }
 
+    /**
+     * Chooses a back-facing camera satisfying the requirements from the constructor (i.e. format
+     * and resolution).
+     *
+     *
+     *
+     * @throws IllegalStateException if the StillSequenceCamera2 is in any but the CLOSED state.
+     */
     @Override
-    public void setup() {
+    public void setup()
+            throws IllegalStateException
+    {
+        if (mState != CLOSED)
+            throw new IllegalStateException("StillSequenceCamera2.setup() can only be called in the CLOSED state");
+
         CameraManager manager = (CameraManager) mActivity.getSystemService(Context.CAMERA_SERVICE);
 
         try {
@@ -91,20 +135,10 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                 if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
                     continue;
                 }
-
-                map = characteristics.get(
-                        CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-                if (map == null) {
-                    continue;
-                }
-
                 mCameraId = cameraId;
             }
-
             mImageCapture.setup(mCameraId);
             mFocusManager.setup(mCameraId);
-
-            return;
         } catch (CameraAccessException e) {
             e.printStackTrace();
         } catch (NullPointerException e) {
@@ -113,49 +147,27 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
             Log.e(TAG, "Camera2 API is not supported");
             throw new UnsupportedOperationException("Camera2 API is not supported");
         }
+
+        mState = INITIALIZED;
     }
 
     @Override
-    public void start(final OnImageAvailableListener listener) {
-        // This will send the camera into the Setup state, from which it will eventually
-        // move into the Focusing and then Capturing states:
+    public void start(final OnImageAvailableListener listener, Handler callbackHandler)
+    {
+        if (mState != INITIALIZED)
+            throw new IllegalStateException("StillSequenceCamera2.start() can only be called in the INITIALIZED state");
 
-        //if (mTextureView == null) {
-        //      openCamera();
-        //} else if (mTextureView.isAvailable()) {
-        //    // When the screen is turned off and turned back on, the SurfaceTexture is already
-        //    // available, and "onSurfaceTextureAvailable" will not be called. In that case, we can open
-        //    // a camera and start preview from here (otherwise, we wait until the surface is ready in
-        //    // the SurfaceTextureListener).
-        //    openCamera();
-        //    configureTransform();
-        //} else {
-        //    mTextureView.setSurfaceTextureListener(
-        //            new TextureView.SurfaceTextureListener() {
-        //                @Override
-        //                public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height) {
-        //                    openCamera();
-        //                }
-        //                @Override
-        //                public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int width, int height) {
-        //                    configureTransform();
-        //                }
-        //                @Override
-        //                public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) {
-        //                    return true;
-        //                }
-        //                @Override
-        //                public void onSurfaceTextureUpdated(SurfaceTexture texture) {
-        //                }
-        //            }
-        //    );
-        //}
+        if (callbackHandler == null)
+            callbackHandler = new Handler();
+        final Handler _callbackHandler = callbackHandler;
 
         mFocusThread = new HandlerThread("CameraBackground");
         mFocusThread.start();
         mFocusHandler = new Handler(mFocusThread.getLooper());
 
         CameraManager manager = (CameraManager) mActivity.getSystemService(Context.CAMERA_SERVICE);
+
+        mState = CHANGING;
         try {
             if (!mCameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
                 throw new RuntimeException("Time out waiting to lock camera opening.");
@@ -184,6 +196,7 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                                                 }
                                                 Log.d(TAG, "CameraDevice configured");
                                                 mCaptureSession = cameraCaptureSession;
+                                                mState = FOCUSING;
                                                 mFocusManager.start(
                                                         mCaptureSession,
                                                         mFocusHandler,
@@ -191,8 +204,24 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                                                             @Override
                                                             public void focusLocked() {
                                                                 //startCapturePhase();
-                                                                mImageCapture.start(mCaptureSession, mFocusHandler, listener);
-                                                                mFocusManager.stop(mFocusHandler);
+                                                                mState = CAPTURING;
+                                                                mImageCapture.start(mCaptureSession, _callbackHandler, listener);
+                                                                mFocusManager.stop();
+                                                            }
+
+                                                            @Override
+                                                            public void error(final Exception error) {
+                                                                mState = ERROR;
+                                                                mFocusManager.stop();
+                                                                if (listener != null)
+                                                                    _callbackHandler.post(
+                                                                            new Runnable() {
+                                                                                @Override
+                                                                                public void run() {
+                                                                                    listener.onError(error);
+                                                                                }
+                                                                            }
+                                                                    );
                                                             }
                                                         }
                                                 );
@@ -201,12 +230,23 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                                             @Override
                                             public void onConfigureFailed(
                                                     CameraCaptureSession cameraCaptureSession) {
+                                                mState = ERROR;
                                                 Log.e(TAG, "Failed");
+                                                if (listener != null)
+                                                    mFocusHandler.post(
+                                                            new Runnable() {
+                                                                @Override
+                                                                public void run() {
+                                                                    listener.onError(null);
+                                                                }
+                                                            }
+                                                    );
                                             }
                                         },
                                         null
                                 );
                             } catch (CameraAccessException e) {
+                                mState = FAILED;
                                 throw new UnsupportedOperationException("Camera access required");
                             }
                         }
@@ -246,12 +286,21 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
     }
 
     @Override
-    public void stop() {
+    public void stop()
+    {
+        if (mState == CLOSED)
+            return;
+
+        if (mState != CAPTURING)
+            throw new IllegalStateException("StillSequenceCamera2.stop() can only be called in the STARTED state");
+
+        mState = CHANGING;
+
         new Thread(new Runnable() {
             public void run() {
 
                 try {
-                    mFocusManager.stop(mFocusHandler);
+                    mFocusManager.stop();
                     mImageCapture.stop();
                     mCameraOpenCloseLock.acquire();
                     if (mCaptureSession != null) {
@@ -278,13 +327,25 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                         e.printStackTrace();
                     }
                 }
+                mState = INITIALIZED;
             }
         }).start();
     }
 
     @Override
     public void close() {
+        if (mState == CLOSED)
+            return;
+
+        if (mState == CAPTURING)
+            stop();
+
+        if (mState != INITIALIZED)
+            throw new IllegalStateException("StillSequenceCamera2.close() can only be called in the INITIALIZED state");
+
         mFocusManager.close();
         mImageCapture.close();
+
+        mState = CLOSED;
     }
 }

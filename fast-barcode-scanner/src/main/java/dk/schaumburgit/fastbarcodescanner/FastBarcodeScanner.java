@@ -17,27 +17,47 @@ package dk.schaumburgit.fastbarcodescanner;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
-import android.hardware.camera2.CaptureResult;
-import android.media.Image;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.util.Log;
 import android.view.SurfaceView;
 import android.view.TextureView;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.DecodeHintType;
+
 import java.security.InvalidParameterException;
 import java.sql.Timestamp;
 import java.util.Date;
+import java.util.EnumSet;
 
 import dk.schaumburgit.stillsequencecamera.IStillSequenceCamera;
 import dk.schaumburgit.stillsequencecamera.camera.StillSequenceCamera;
 import dk.schaumburgit.stillsequencecamera.camera2.StillSequenceCamera2;
 import dk.schaumburgit.trackingbarcodescanner.TrackingBarcodeScanner;
 
+/**
+ * The FastBarcodeScanner captures images from your front-facing camera at the fastest
+ * possible rate, scans them for barcodes and reports any changes to the caller
+ * via a listener callback.
+ *
+ * The image capture is done unobtrusively without any visible UI, using a background thread.
+ *
+ * For newer Android versions (Lollipop and later), the new, faster Camera2 API is supported.
+ * For older versions, FastBarcodeScanner falls back to using the older, slower camera API.
+ *
+ * When the Camera2 API is available, the FastBarcodeScanner can be created with a TextureView
+ * if on-screen preview is desired, or without for headless operation.
+ *
+ * For older Android versions, the FastBarcodeScanner *must* be created with a SurfaceView,
+ * and the SurfaceView *must* be visible on-screen. Setting the SurfaceView to 1x1 pixel
+ * will however make it effectively invisible.
+ *
+ * Regardless of Android version, the FastbarcodeScanner *must* be supplied with a reference
+ * to the current Activity (used for accessing e.g. the camera, and other system resources).
+ *
+ */
 public class FastBarcodeScanner
-        implements IStillSequenceCamera.OnImageAvailableListener//, IStillSequenceCamera.CameraStateChangeListener
 {
     /**
      * Tag for the {@link Log}.
@@ -45,12 +65,36 @@ public class FastBarcodeScanner
     private static final String TAG = "FastBarcodeScanner";
 
     private Activity mActivity;
+    private Handler mBarcodeListenerHandler;
+    private HandlerThread mProcessingThread;
+    private Handler mProcessingHandler;
+
     private Activity getActivity() {
         return mActivity;
     }
 
     private IStillSequenceCamera mImageSource;
     private TrackingBarcodeScanner mBarcodeFinder;
+
+    /**
+     * Creates a headless FastBarcodeScanner (i.e. one without any UI)
+     *
+     * FastBarcodeScanner instances created using this constructor will use
+     * the new, efficient Camera2 API for controlling the camera.
+     *
+     * This boosts performance by a factor 5x - but it only works on Android
+     * Lollipop (API version 21) and later.
+     *
+     * As an alternative, consider using the #FastBarcodeScanner constructor
+     * which will create a FastBarcodeScanner working on older versions of
+     * Android too - albeit much less efficiently.
+     * @param activity Non null
+     */
+    @TargetApi(21)
+    public FastBarcodeScanner(Activity activity)
+    {
+        this(activity, (TextureView)null);
+    }
 
     /**
      * Creates a FastBarcodeScanner using the given TextureView for preview.
@@ -74,12 +118,19 @@ public class FastBarcodeScanner
 
         this.mActivity = activity;
         this.mBarcodeFinder = new TrackingBarcodeScanner();
-        this.mImageSource = new StillSequenceCamera2(activity, textureView, mBarcodeFinder.GetPreferredFormats(), 1024*768);
+        this.mImageSource = new StillSequenceCamera2(activity, textureView, mBarcodeFinder.getPreferredImageFormats(), 1024*768);
         this.mImageSource.setup();
     }
 
     /**
+     * Creates a FastBarcodeScanner using the deprecated Camera API supported
+     * on Android versions prior to Lollipop (API level lower than 21).
      *
+     * The created FastBarcodeScanner will display preview output in the supplied
+     * SurfaceView. This parameter *must* be non-null, and the referenced SurfaceView
+     * *must* be displayed on-screen, with a minimum size of 1x1 pixels. This is a
+     * non-negotiable requirement from the camera API (upgrade to API level 21 for
+     * true headless operation).
      * @param activity Non-null
      * @param surfaceView Non-null
      */
@@ -96,23 +147,90 @@ public class FastBarcodeScanner
         this.mImageSource.setup();
     }
 
-    public void StartScan()
+    /**
+     * Starts scanning on a background thread, calling the supplied listener whenever
+     * there's a *change* in the barcode seen (i.e. if 200 consecutive images contain
+     * the same barcode, only the first will generate a callback).
+     *
+     * "No barcode" is signalled with a null value via the callback.
+     *
+     * Example: After StartScan is called, the first 20 images contain no barcode, the
+     * next 200 have barcode A, the next 20 have nothing. This will generate the
+     * following callbacks:
+     *
+     * Frame#1:   onBarcodeAvailable(null)
+     * Frame#21:  onBarcodeAvailable("A")
+     * Frame#221: onBarcodeAvailable(null)
+     *
+     * @param listener A reference to the listener receiving the above mentioned callbacks
+     * @param callbackHandler Identifies the thread that the callbacks will be made on.
+     *                        Null means "use the thread that called StartScan()".
+     */
+    public void StartScan(BarcodeDetectedListener listener, Handler callbackHandler)
     {
-        mImageSource.start(this);
+        mBarcodeListenerHandler = callbackHandler;
+        if (mBarcodeListenerHandler == null)
+            mBarcodeListenerHandler = new Handler();
+        mBarcodeListener = listener;
+
+        mProcessingThread = new HandlerThread("FastBarcodeScanner processing thread");
+        mProcessingThread.start();
+        mProcessingHandler = new Handler(mProcessingThread.getLooper());
+
+        mImageSource.start(
+                new IStillSequenceCamera.OnImageAvailableListener()
+                {
+
+                    @Override
+                    public void onImageAvailable(int format, byte[] data, int width, int height) {
+                        processImage(format, data, width, height);
+                    }
+
+                    @Override
+                    public void onError(Exception error) {
+                        FastBarcodeScanner.this.onError(error);
+                    }
+
+                },
+                mProcessingHandler
+        );
     }
 
+    /**
+     * Stops the scanning process started by StartScan() and frees any shared system resources
+     * (e.g. the camera). StartScan() can always be called to restart.
+     *
+     * StopScan() and StartScan() are thus well suited for use from the onPause() and onResume()
+     * handlers of a calling application.
+     */
     public void StopScan()
     {
         mImageSource.stop();
+
+        if (mProcessingThread != null) {
+            try {
+                mProcessingThread.quitSafely();
+                mProcessingThread.join();
+                mProcessingThread = null;
+                mProcessingHandler = null;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        mBarcodeListener = null;
+        mBarcodeListenerHandler = null;
     }
 
+    /**
+     * Disposes irrevocably of all resources. This instance cannot be used after close() is called.
+     */
     public void close()
     {
         this.mImageSource.close();
     }
 
-    @Override
-    public void onImageAvailable(int format, byte[] bytes, int width, int height) {
+    private void processImage(int format, byte[] bytes, int width, int height) {
         // Get the image data (we requested JPEG) into a byte buffer:
         Date first = new Date();
 
@@ -120,11 +238,11 @@ public class FastBarcodeScanner
         Date second = new Date();
         try {
             String newBarcode = mBarcodeFinder.find(format, width, height, bytes);
-            Log.i(TAG, "Found barcode: " + newBarcode);
+            Log.v(TAG, "Found barcode: " + newBarcode);
             Date third = new Date();
 
             // Tell the world:
-            callBarcodeListener(newBarcode);
+            onBarcodeFound(newBarcode);
             Date fourth = new Date();
             if (false)
                 Log.v(
@@ -154,44 +272,19 @@ public class FastBarcodeScanner
         }
     }
 
-    private int nImagesProcessed = 0;
-    private void saveImage(byte[] bytes) {
-        File dir = getActivity().getExternalFilesDir(null);
-        nImagesProcessed++;
-        File saveAs = new File(dir, "qr" + nImagesProcessed + ".jpg");
-
-        FileOutputStream output = null;
-        try {
-            output = new FileOutputStream(saveAs);
-            output.write(bytes);
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if (null != output) {
-                try {
-                    output.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
     //*********************************************************************
     //* Managing Barcode events:
     //* ========================
+    //* Only bother the listener if a *new* barcode is detected.
     //*
+    //* Furthermore,
     //*********************************************************************
 
     private BarcodeDetectedListener mBarcodeListener = null;
-    public void setBarcodeListener(BarcodeDetectedListener listener)
-    {
-        mBarcodeListener = listener;
-    }
-
     private String mLastReportedBarcode = null;
     private int mNoBarcodeCount = 0;
-    private void callBarcodeListener(String barcode)
+    private final int NO_BARCODE_IGNORE_LIMIT = 5;
+    private void onBarcodeFound(String barcode)
     {
         //mBarcodeListener.onBarcodeAvailable(barcode);
         //Log.d(TAG, "Scanned " + barcode);
@@ -201,10 +294,9 @@ public class FastBarcodeScanner
         if (barcode == null)
         {
             mNoBarcodeCount++;
-            if (mLastReportedBarcode != null && mNoBarcodeCount >= 5)
-            {
+            if (mLastReportedBarcode != null && mNoBarcodeCount >= NO_BARCODE_IGNORE_LIMIT) {
                 mLastReportedBarcode = null;
-                mBarcodeListener.onBarcodeAvailable(mLastReportedBarcode);
+                _onBarcode(mLastReportedBarcode);
             }
         }
         else
@@ -213,10 +305,30 @@ public class FastBarcodeScanner
             if (!barcode.equals(mLastReportedBarcode))
             {
                 mLastReportedBarcode = barcode;
-                if (mBarcodeListener != null)
-                    mBarcodeListener.onBarcodeAvailable(mLastReportedBarcode);
+                _onBarcode(mLastReportedBarcode);
             }
         }
+    }
+
+    private void _onBarcode(final String barcode)
+    {
+        if (mBarcodeListener != null) {
+            mBarcodeListenerHandler.post(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            mBarcodeListener.onBarcodeAvailable(barcode);
+                        }
+                    }
+            );
+        }
+
+    }
+
+    private void onError(Exception error)
+    {
+        if (mBarcodeListener != null)
+            mBarcodeListener.onError(error);
     }
 
     //*********************************************************************
@@ -232,7 +344,7 @@ public class FastBarcodeScanner
      * </p>
      * <p>
      * When no barcodes have been detected in 3 consecutive frames, onBarcodeAvailable
-     * with a null barcode parameter.
+     * is called with a null barcode parameter ().
      * </p>
      */
     public interface BarcodeDetectedListener {
@@ -242,6 +354,44 @@ public class FastBarcodeScanner
          * @param barcode the barcode detected.
          */
         void onBarcodeAvailable(String barcode);
+
+        void onError(Exception error);
     }
+
+    //*********************************************************************
+    // Pass-through properties for the barcode scanner
+    //*********************************************************************
+    public double getRelativeTrackingMargin() {
+        return mBarcodeFinder.getRelativeTrackingMargin();
+    }
+
+    public void setRelativeTrackingMargin(double relativeTrackingMargin) {
+        mBarcodeFinder.setRelativeTrackingMargin(relativeTrackingMargin);
+    }
+
+    public int getNoHitsBeforeTrackingLoss() {
+        return mBarcodeFinder.getNoHitsBeforeTrackingLoss();
+    }
+
+    public void setNoHitsBeforeTrackingLoss(int noHitsBeforeTrackingLoss) {
+        mBarcodeFinder.setNoHitsBeforeTrackingLoss(noHitsBeforeTrackingLoss);
+    }
+
+    public EnumSet<BarcodeFormat> getPossibleBarcodeFormats() {
+        return mBarcodeFinder.getPossibleBarcodeFormats();
+    }
+
+    public void setPossibleBarcodeFormats(EnumSet<BarcodeFormat> possibleFormats) {
+        mBarcodeFinder.setPossibleBarcodeFormats(possibleFormats);
+    }
+
+    public boolean isUseTracking() {
+        return mBarcodeFinder.isUseTracking();
+    }
+
+    public void setUseTracking(boolean useTracking) {
+        mBarcodeFinder.setUseTracking(useTracking);
+    }
+
 }
 
