@@ -41,19 +41,20 @@ The fastbarcodescanner.aar library has a very simple API:
  
 1. Instantiate a FastBarcodeScanner using one of the following constructors (depending on the Android version you're running):
 
-    Android Lollipop (API level 21) or later:
+    *Android Lollipop (API level 21) or later:*
 
     ```
      FastBarcodeScanner fbs = new FastBarcodeScanner(activity); // scan without any on-screen preview
      FastBarcodeScanner fbs = new FastBarcodeScanner(activity, textureView); // scan with preview displayed in textureView
     ```
-    Earlier Android versions:
+    *Earlier Android versions:*
     ```
      FastBarcodeScanner fbs = new FastBarcodeScanner(activity, surfaceView); // scan with preview displayed in surfaceView
     ```
+
 2. Start scanning:
- 
-```
+
+    ```
     fbs.StartScan(
        new BarcodeDetectedListener {
           @override
@@ -67,15 +68,17 @@ The fastbarcodescanner.aar library has a very simple API:
        },
        handler
     );
-```
-3. The code in `onBarcodeAvailable()` and `onError()` above will be called using the thread wrapped by
-   the handler parameter. What you do with the barcode is up to you - the FastBarcodeScanner is
-   already busily looking for the next barcode on its own, internal thread.
+    ```
+
+3. The code in `onBarcodeAvailable()` and `onError()` above will be called using the thread wrapped by the handler parameter. What you do with the barcode is up to you - the FastBarcodeScanner is already busily looking for the next barcode on its own, internal thread.
+
 4. When you're done, simply call stopScan():
-```
+
+    ```
     fbs.stopScan();
-```
-   This will stop all the internal threads, and (most importantly) free the camera
+    ```
+    This will stop all the internal threads, and (most importantly) free the camera
+
 5. A well-behaved app will implement onPause() and onResume() to call stopScan() and startScan(), thus freeing e.g. the camera for use by other apps. 
  
  
