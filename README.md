@@ -137,7 +137,7 @@ Our fix for this has been to
 1. Construct the scanning cradle so barcodes are always in roughly the same location
 2. Glue a dummy barcode to the scanning surface exactly where the real barcodes will be - this prevents tracking loss when replacing items
 
-This naturally assumes that all items being scanned are roughly identical, and have identically placed barcodes.
+This naturally assumes that all items being scanned are roughly identical, and have (roughly) identically placed barcodes. You can adjust the definition of "roughly identical" with the `RelativeTrackingMargin` property.
 
 ## Previous text
 
