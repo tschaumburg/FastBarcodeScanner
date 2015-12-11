@@ -1,6 +1,5 @@
 # FastBarcodeScanner
-The FastBarcodeScanner is an **open-source** library providing **fast**, **continuous**, **headless** scanning for barcodes, using the camera built into your
-Android phone or tablet.
+The FastBarcodeScanner is an **open-source** **library** providing **fast**, **continuous**, **headless** scanning for barcodes, using the camera built into your Android phone or tablet, combined with the amazing **ZXing** barcode library.
  
 The main advantages are:
  
@@ -108,16 +107,22 @@ To have the best of both worlds, write your code to test for the precense of Cam
 ```
 ```
 
-###Focus lock or continuous refocus
-The first parameter of `startScan()` determines whether the camera should lock its focus as soon as possible, or continuously attempt to refocus.
+###Fixed-distance or variable-distance scanning
+If the items you are scanning are always at a *fixed distance* from the camera you only have to focus the camera once at the beginning of the scanning session - this gives much higher speed and better results.
 
-The former requires (`lockFocus == true`) that there's reasonably constant distance between the camera and the items being scanned. Setups for scanning documents, tickets, library books etc are examples of this.
+Examples of fixed-distance scanning scenarios include ticket verification, document identification, library book scanners, some forms of inventory taking: all scenarios where you can mount the camera at a fixed location, and move the barcoded items past:
 
-The advantage is that the app doesn't waste time on constant refocusing and blurry images: once focused, every image will be crisp and sharp - as long as you keep the scanning distance reasonably constant.
+(photo)
 
-The latter (`lockFocus == false`) is useful if you wave your camera around, trying to catch any barcode, near or far. But it comes at the cost of drastically reduced performance - whenever you move the camera, it wil spend 1-3 seconds regaining focus. Ouch.
+If, on the other hand, you are scanning at *variable distances*, you have to refocus constantly - at the cost of lower performance (the camera can take as much as 2-3 seconds to regain focus).
 
-My focus in writing this library has been on the fixed-distance setup (`lockFocus == true`) - I suspect there are considerable optimizations to be made in the focusing engine for the variable-distance scenario, so feel free to suggest improvements!
+Examples of variable-distance scanning include scanning fixed items (moving from item to item will ruin the focus lock).
+
+FastBarcodeScanner caters to both scenarios: the first parameter of `startScan()` determines whether the camera should lock its focus as soon as possible (`true`), or continuously attempt to refocus (`false`).
+
+The focus when writing this library has been overwhelmingly on the fixed-distance sscenario - so I suspect there are considerable optimizations to be made in the focusing engine for the variable-distance scenario.
+
+So feel free to suggest (or make) improvements!
  
 ###Fixed-distance scanning: further optimizations 
  
