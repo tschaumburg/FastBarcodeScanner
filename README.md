@@ -24,16 +24,27 @@ Further points of potential interest:
 - **Demo app:** In the FastBarcodeScanner repo, there's a proof-of-concept demo app. It contains a start button, a text field where any scanned barcodes are written, and a stop button - not exactly rocket science, but that's about as complicated as it gets. See [xxxxx](#the-demo-app)
  
 ##The demo app
-The demo is written as a proof-of-concept for low-cost, highly portable item registration: you place your phone in a fixed location, and move each bar-coded item past the phone. If the barcode is recognized, the phone vibrates briefly.
- 
-In the real world, the app would naturally do something with the scanned barcodes: upload them to an inventory server, help you sort the items into categories, etc.
+The demo is written as a proof-of-concept for low-cost, highly portable item registration: you place your phone in a fixed location, and move each bar-coded item past the phone:
+
+<photo>
+
+If you're just trying this out, a simpler form of mounting will do:
+
+<photo>
+
+You simply start the demo app, mount the phone, and press start:
+
+<screen shot>
+
+You can now move barcoded items pas the phones camera, and the app will display any
+the phone in your
+If the barcode is recognized, the phone vibrates briefly. In the real world, the app would naturally do something with the scanned barcodes: upload them to an inventory server, identify duplicated event tickets, etc.
  
 But this is just a demo app, so we'll keep it simple: there's a start and a stop button, and a field displaying the contents of the currently scanned barcode:
  
 <screen shot)
  
-(Caveat: one thing you'll notice is that the app doesn't re-focus during scanning, so you'll need to keep a fairly constant scanning distance. This
-makes scanning faster and smoother - no time wasted re-focusing - but requires a fairly rigid scanning setup. It's easily changed in your own app)
+You simply place the phone in your holder, press start, and 
  
 ##Using the fastbarcodescanner.aar library
  
@@ -56,6 +67,7 @@ The fastbarcodescanner.aar library has a very simple API:
 
     ```
     fbs.StartScan(
+       true,
        new BarcodeDetectedListener {
           @override
           onBarcodeAvailable(String barcode) {
@@ -69,7 +81,9 @@ The fastbarcodescanner.aar library has a very simple API:
        handler
     );
     ```
-
+    
+    The first parameter above determines if the camera should lock the focus when first achieved (`true`) or continue to refocus (`false`). See the section on [performance](performance-considerations) below
+    
 3. The code in `onBarcodeAvailable()` and `onError()` above will be called using the thread wrapped by the handler parameter. What you do with the barcode is up to you - the FastBarcodeScanner is already busily looking for the next barcode on its own, internal thread.
 
 4. When you're done, simply call stopScan():
@@ -80,74 +94,34 @@ The fastbarcodescanner.aar library has a very simple API:
     This will stop all the internal threads, and (most importantly) free the camera
 
 5. A well-behaved app will implement onPause() and onResume() to call stopScan() and startScan(), thus freeing e.g. the camera for use by other apps. 
+
+##Performance considerations 
+Many things affect the performance of FastBarcodeScanner - these are the most important:
+
+###Android version: Camera or Camera2
+This is simple: if you use the FastBarcodeScanner on Android Lollipop or later, you get access to the much more efficient Camera2 API. The effect is a factor 5x speedup.
+
+The cost is that you cut yourself off from 50-70% of the installed base (as of November 2015 - and dropping quickly).
+
+To have the best of both worlds, write your code to test for the precense of Camera2, and use the proper constructor if available:
+
+```
+```
+
+###Focus lock or continuous refocus
+The first parameter of `startScan()` determines whether the camera should lock its focus as soon as possible, or continuously attempt to refocus.
+
+The former requires (`lockFocus == true`) that there's reasonably constant distance between the camera and the items being scanned. Setups for scanning documents, tickets, library books etc are examples of this.
+
+The advantage is that the app doesn't waste time on constant refocusing and blurry images: once focused, every image will be crisp and sharp - as long as you keep the scanning distance reasonably constant.
+
+The latter (`lockFocus == false`) is useful if you wave your camera around, trying to catch any barcode, near or far. But it comes at the cost of drastically reduced performance - whenever you move the camera, it wil spend 1-3 seconds regaining focus. Ouch.
+
+My focus in writing this library has been on the fixed-distance setup (`lockFocus == true`) - I suspect there are considerable optimizations to be made in the focusing engine for the variable-distance scenario, so feel free to suggest improvements!
  
+###Fixed-distance scanning: further optimizations 
  
- 
- 
- 
- 
-For the actual app (I'll spare you the details), we had a cradle made in plexiglass
- 
-The demo app is written a proof-of-concept for low-cost ticket verification for small-scale events: one person
- 
-In one scenario, the phone with the app is mounted in a fixed position and the tickets being verified are moved past the scanner. For the proof-of-
-concept, we had a simple cradle made in plexiglass,
- 
-If the QR code printed on the ticket is decoded and verified as authentic, the screen flashes green.
- 
-The demo app is a simplified version: it simply vibrates and displays the contents of the QR code
-1. Place the phone in a fixed position over a well-lit surface. For our project, we had a cradle made in plexiglass:
-2. Start the app and press "start".
-3. The phone will now focus the camera, and look for QR codes as fast as the camera can supply images (on my Nexus 5, I get a rate of 6-10 fps)
-4. Every QR code found will be displayed on-screen ("null" if no QR codes are found)   
- 
-Using the library
-Using the library in you own app is simple - below I'll go through the steps using Android Studio
- 
-1. Create a blank app project using Android Studio
-2. Reference fastbarcodescanner#1.0.4 by adding it to the build.gradle dependencies list
-2. Add 2 b
- 
-The fastbarcodescanner.aar library contains the class dk.schaumburgit.fastbarcodescanner... class
-
-
-
-
-#Previous
-The FastBarcodeScanner package is a Java library letting you continuously take still pictures and search them for QR codes - without requiring any user involvment.
-
-The entire process happpens in a background thread, without any user interface components (i.e. you will **not** see any camera window opening).
-
-The library will only call back when it detects changes in what it sees - so until there's a QR code in view, your app will not be disturbed.
-
-And did I mention that it's pretty fast? A sustained rate of 6-10 scans per second on a Nexus 5.
-
-The package uses the Android Camera2 API for image capture, and was heavily inspired by the [Android Camera2Basic sample](https://github.com/googlesamples/android-Camera2Basic).
-
-The package uses the brilliant [ZXing barcode library](https://github.com/zxing/zxing) for all the complicated stuff
-
-##Using it
-
-There are two ways of using this package: the demo app for verifying the speed and precision of the scanning, and the library for inclusin in your own app.
-
-###The demo
-
-The demo app source code is in the fast-barcode-scanner-demo directory, and the built APK file is in the release artifacts. Maybe some day I'll get around to uploading it to the play store, but until then you'll have to either build or install the APK directly.
-
-The app is written to work a bit like a supermarket checkout scanner - you place your phone in a fixed location, the app then focuses the camera and starts looking for QR codes. Whenever it sees a new QR code it will vibrate and display the embedded text.
-
-To use the demo,
-
-- Start the app
-- Place it in a fixed location, with a fixed distance to the scanning surface
-- Press Focus, then Start
-- Start moving QR codes past the camera, at a controlled speed
-
-You should now hear/feel the phone vibrate whenever a QR code is recognized.
-
-Is this a useful scenario? Well, it matched our needs pretty well (think mobile ticket scanning) - but it's only a demo, there's nothing in the library requiring this.
-
-###The library
+## Previous text
 
 To include fast barcode scanning in you app, include the fast-barcode-scanner library in your app - if you're using gradle, here's the line to use:
 
@@ -173,29 +147,6 @@ Then, from you app, call `FastBarcodeScanner`:
         ...
     }
 
-
-##Extending it
-
-This is a fairly focused package (Android, post-Lollipop, QR codes only, etc.). Here are some thoughts on removing those restrictions - feel free to contribute code and suggestions.
-
-###Supporting older Android versions
-The package uses the new Android Camera2 API, which supports taking pictures without direct user involvement (i.e. there doesn't have to be an on-screen preview).
-
-The old camera API does require a preview window - but you *can* allegedly cheat it by creating a 1x1 pixel preview window.
-
-If that's correct, adding pre-Lollipop support to this package will be simple: create a StillSequenceCamera1 class next to the existing StillSequencecamera2, and use that for older versions
-
-###Detecting other barcodes than QR
-This will be embarrassingly simple - the ZXing library already supports them all.
-
-It's just a question ofchanging a few lines in the TrackingBarcodeScanner class.
-
-###Why the focus-then-scan approach?
-Short answer: because that's the scenario I needed support for. And continuous focus adjustment reduces the image capture rate considerably.
-
-But if you want something else, letting the focus-and-metering continue during capture is definitely poissble - lots of apps do it.
-
-But the camera2 API *is* a complicated beast, so I left that for a future extension :-)
 
 ###Can it go faster?
 Yes!
