@@ -66,7 +66,6 @@ The fastbarcodescanner.aar library has a very simple API:
 
     ```
     fbs.StartScan(
-       true,
        new BarcodeDetectedListener {
           @override
           onBarcodeAvailable(String barcode) {
@@ -80,8 +79,6 @@ The fastbarcodescanner.aar library has a very simple API:
        handler
     );
     ```
-    
-    The first parameter above determines if the camera should lock the focus when first achieved (`true`) or continue to refocus (`false`). See the section on [performance](performance-considerations) below
     
 3. The code in `onBarcodeAvailable()` and `onError()` above will be called using the thread wrapped by the handler parameter. What you do with the barcode is up to you - the FastBarcodeScanner is already busily looking for the next barcode on its own, internal thread.
 
@@ -118,7 +115,7 @@ If, on the other hand, you are scanning at *variable distances*, you have to ref
 
 Examples of variable-distance scanning include scanning fixed items (moving from item to item will ruin the focus lock).
 
-FastBarcodeScanner caters to both scenarios: the first parameter of `startScan()` determines whether the camera should lock its focus as soon as possible (`true`), or continuously attempt to refocus (`false`).
+FastBarcodeScanner caters to both scenarios: the property `LockFocus` determines whether the camera should lock its focus as soon as possible (`true`), or continuously attempt to refocus (`false`).
 
 The focus when writing this library has been overwhelmingly on the fixed-distance sscenario - so I suspect there are considerable optimizations to be made in the focusing engine for the variable-distance scenario.
 
