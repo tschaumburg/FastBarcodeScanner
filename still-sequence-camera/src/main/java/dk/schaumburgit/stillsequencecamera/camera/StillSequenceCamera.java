@@ -5,12 +5,10 @@ import android.graphics.ImageFormat;
 import android.hardware.Camera;
 import android.hardware.Camera.CameraInfo;
 import android.hardware.Camera.PictureCallback;
-import android.media.Image;
 import android.os.Handler;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.view.View;
 
 import java.io.IOException;
 
@@ -30,6 +28,7 @@ public class StillSequenceCamera implements IStillSequenceCamera {
     private final static int CLOSED = 0;
     private final static int INITIALIZED = 1;
     private final static int CAPTURING = 2;
+    private boolean mLockFocus = true;
     private int mState = CLOSED;
 
     public StillSequenceCamera(Activity activity, SurfaceView preview)
@@ -97,6 +96,7 @@ public class StillSequenceCamera implements IStillSequenceCamera {
      *
      * @throws IllegalStateException if the StillSequenceCamera is in any but the INITIALIZED state
      */
+    @Override
     public void start(OnImageAvailableListener listener, Handler callbackHandler)
             throws IllegalStateException
     {
@@ -266,5 +266,15 @@ public class StillSequenceCamera implements IStillSequenceCamera {
                     }
                 }
         );
+    }
+
+    @Override
+    public boolean isLockFocus() {
+        return mLockFocus;
+    }
+
+    @Override
+    public void setLockFocus(boolean lockFocus) {
+        this.mLockFocus = lockFocus;
     }
 }

@@ -73,8 +73,8 @@ public class FastBarcodeScanner
         return mActivity;
     }
 
-    private IStillSequenceCamera mImageSource;
-    private TrackingBarcodeScanner mBarcodeFinder;
+    private final IStillSequenceCamera mImageSource;
+    private final TrackingBarcodeScanner mBarcodeFinder;
 
     /**
      * Creates a headless FastBarcodeScanner (i.e. one without any UI)
@@ -88,6 +88,10 @@ public class FastBarcodeScanner
      * As an alternative, consider using the #FastBarcodeScanner constructor
      * which will create a FastBarcodeScanner working on older versions of
      * Android too - albeit much less efficiently.
+     *
+     * The following properties control the behaviour of the barcode scanning
+     * (see #TrackingBarcodeScanner for details): UseTracking, RelativeTrackingMargin,
+     * NoHitsBeforeTrackingLoss.
      * @param activity Non null
      */
     @TargetApi(21)
@@ -393,5 +397,12 @@ public class FastBarcodeScanner
         mBarcodeFinder.setUseTracking(useTracking);
     }
 
+    public boolean isLockFocus() {
+        return mImageSource.isLockFocus();
+    }
+
+    public void setLockFocus(boolean lockFocus) {
+        mImageSource.setLockFocus(lockFocus);
+    }
 }
 

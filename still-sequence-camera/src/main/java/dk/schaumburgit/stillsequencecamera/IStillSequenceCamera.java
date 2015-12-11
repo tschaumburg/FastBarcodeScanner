@@ -21,5 +21,8 @@ public interface IStillSequenceCamera {
         void onImageAvailable(int format, byte[] data, int width, int height);
         void onError(Exception error);
     }
+
+    boolean isLockFocus();
+    void setLockFocus(boolean lockFocus);
 }
 

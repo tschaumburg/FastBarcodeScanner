@@ -9,8 +9,6 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.params.StreamConfigurationMap;
-import android.media.Image;
-import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 //import android.support.annotation.NonNull;
@@ -54,6 +52,7 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
     private final static int FAILED = 5;
     private final static int ERROR = 6;
     private int mState = CLOSED;
+    private boolean mLockFocus = true;
 
     /**
      * Creates a headless #StillSequenceCamera2
@@ -199,6 +198,7 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                                                 mState = FOCUSING;
                                                 mFocusManager.start(
                                                         mCaptureSession,
+                                                        mLockFocus,
                                                         mFocusHandler,
                                                         new FocusManager.FocusListener() {
                                                             @Override
@@ -206,7 +206,8 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                                                                 //startCapturePhase();
                                                                 mState = CAPTURING;
                                                                 mImageCapture.start(mCaptureSession, _callbackHandler, listener);
-                                                                mFocusManager.stop();
+                                                                if (mLockFocus)
+                                                                    mFocusManager.stop();
                                                             }
 
                                                             @Override
@@ -347,5 +348,15 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
         mImageCapture.close();
 
         mState = CLOSED;
+    }
+
+    @Override
+    public boolean isLockFocus() {
+        return mLockFocus;
+    }
+
+    @Override
+    public void setLockFocus(boolean lockFocus) {
+        this.mLockFocus = lockFocus;
     }
 }

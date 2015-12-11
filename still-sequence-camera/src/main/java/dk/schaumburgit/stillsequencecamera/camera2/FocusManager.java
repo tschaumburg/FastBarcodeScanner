@@ -290,13 +290,13 @@ public class FocusManager {
      * looper}.
      * @param listener
      */
-    public void start(CameraCaptureSession cameraCaptureSession, Handler callbackHandler, FocusListener listener)
+    public void start(CameraCaptureSession cameraCaptureSession, boolean lockFocus, Handler callbackHandler, FocusListener listener)
     {
         mCameraCaptureSession = cameraCaptureSession;
         // When the session is ready, we start displaying the preview.
         try {
             Log.i(TAG, "StartFocusing");
-            mStateMachine = new FocusingStateMachine(cameraCaptureSession, callbackHandler, listener);
+            mStateMachine = new FocusingStateMachine(cameraCaptureSession, lockFocus, callbackHandler, listener);
             mStateMachine.start(mPreviewSurface);
         } catch (Exception e) {
             if (cameraCaptureSession != null) {
@@ -325,6 +325,7 @@ public class FocusManager {
         private final FocusListener mListener;
         private final Handler mCallbackHandler;
         private final CameraCaptureSession mCaptureSession;
+        private final boolean mLockFocus;
 
         private HandlerThread mFocusingStateMachineThread;
         private Handler mFocusingStateMachineHandler;
@@ -340,8 +341,9 @@ public class FocusManager {
         private static final int STATE_PICTURE_TAKEN = 4;
         private int mState = STATE_IDLE;
 
-        FocusingStateMachine(CameraCaptureSession cameraCaptureSession, Handler callbackHandler, FocusListener listener) {
+        FocusingStateMachine(CameraCaptureSession cameraCaptureSession, boolean lockFocus, Handler callbackHandler, FocusListener listener) {
             mState = STATE_IDLE;
+            mLockFocus = lockFocus;
             mCaptureSession = cameraCaptureSession;
             mListener = listener;
             if (callbackHandler != null) {
@@ -558,7 +560,8 @@ public class FocusManager {
         {
             Log.i(TAG, "focus lock");
             try {
-                mCaptureSession.stopRepeating();
+                if (mLockFocus)
+                    mCaptureSession.stopRepeating();
                 if (mListener != null) {
                     mCallbackHandler.post(
                             new Runnable() {

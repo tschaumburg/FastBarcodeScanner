@@ -32,6 +32,7 @@ public class MainActivity extends AppCompatActivity
 {
     private static final String TAG = "FastBarcodeScannerDemo";
     private SurfaceView mSurfaceView;
+    private TextureView mTextureView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,7 +57,8 @@ public class MainActivity extends AppCompatActivity
             }
         });
 
-        mSurfaceView = (SurfaceView)findViewById(R.id.surfaceView);
+        //mSurfaceView = (SurfaceView)findViewById(R.id.preview);
+        mTextureView = (TextureView)findViewById(R.id.preview);
     }
 
     @Override
@@ -86,8 +88,8 @@ public class MainActivity extends AppCompatActivity
         requestCameraPermission();
 
         if (mScanner == null) {
-            mScanner = new FastBarcodeScanner(this, (TextureView)null);
-            //mScanner = new FastBarcodeScanner(this, mSurfaceView);
+            //mScanner = new FastBarcodeScanner(this, (TextureView)null);
+            mScanner = new FastBarcodeScanner(this, mTextureView);
             //mScanner.setScanningStateListener(this);
         }
 
@@ -95,6 +97,7 @@ public class MainActivity extends AppCompatActivity
         Button stopButton = (Button)findViewById(R.id.button3);
 
         startButton.setEnabled(false);
+        mScanner.setLockFocus(false);
         mScanner.StartScan(this, null);
         stopButton.setEnabled(true);
     }
