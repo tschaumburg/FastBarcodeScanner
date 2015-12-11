@@ -1,4 +1,97 @@
 # FastBarcodeScanner
+The FastBarcodeScanner is an **open-source** library providing **fast**, **continuous**, **headless** scanning for barcodes, using the camera built into your
+Android phone or tablet.
+ 
+The main advantages are:
+ 
+- **Library:** The core product of this project is the fastbarcodescanner.aar library which is straight-forward to integrate
+in your app. More details below!
+
+- **Headless:** The library does not require any user interface whatsoever. It will grab images directly from the camera and analyse them without requiring any access to the user interface (caveat: Android versions prior to Lollipop require that you let the camera have 1 (one) pixel to play with - see details later)
+
+- **Continuous:** Once you have called the start() method, the FastBarcodeScanner library will continue grabbing and analyzing images until you call stop (), with no interention required from you - it will just call you back whenever it finds a barcode.
+
+- **Fast:** I've measured 6-10 barcodes scanned per second - though poor lighting, motion blur etc. will reduce this
+
+- **ZXing:** all the complicated bacode recognition is provided by ZXing, the industry-standard open source barcode library. All credit goes to the ZXing team - this library only adds camera handling.
+
+- **Open source**: the entire FastBarcodeScanner library is open source (as is the ZXing library, BTW) - so it's free for you to examine, tweak, optimize and fix
+ 
+Further points of potential interest:
+ 
+- **Cordova/Phonegap plugin:** There's a Cordova/Phonegap plugin for the FastBarcodeScanner library available at https://github.com/tschaumburg/FastBarcodeScannerPlugin
+
+- **Demo app:** In the FastBarcodeScanner repo, there's a proof-of-concept demo app. It contains a start button, a text field where any scanned barcodes are written, and a stop button - not exactly rocket science, but that's about as complicated as it gets. See [xxxxx](#the-demo-app)
+ 
+##The demo app
+The demo is written as a proof-of-concept for low-cost, highly portable item registration: you place your phone in a fixed location, and move each bar-coded item past the phone. If the barcode is recognized, the phone vibrates briefly.
+ 
+In the real world, the app would naturally do something with the scanned barcodes: upload them to an inventory server, help you sort the items into categories, etc.
+ 
+But this is just a demo app, so we'll keep it simple: there's a start and a stop button, and a field displaying the contents of the currently scanned barcode:
+ 
+<screen shot)
+ 
+(Caveat: one thing you'll notice is that the app doesn't re-focus during scanning, so you'll need to keep a fairly constant scanning distance. This
+makes scanning faster and smoother - no time wasted re-focusing - but requires a fairly rigid scanning setup. It's easily changed in your own app)
+ 
+Using the fastbarcodescanner.aar library
+ 
+The fastbarcodescanner.aar library has a very simple interface. Here's how you use it:
+ 
+1. Instantiate a FastBarcodeScanner using one of the following constructors (depending on the Android version you're running):
+ 
+   Android Lollipop (API level 21) or later:
+    FastBarcodeScanner fbs = new FastBarcodeScanner(activity); // scan without any on-screen preview
+    FastBarcodeScanner fbs = new FastBarcodeScanner(activity, textureView); // scan with preview displayed in textureView
+ 
+   Earlier Android versions:
+    FastBarcodeScanner fbs = new FastBarcodeScanner(activity, surfaceView); // scan with preview displayed in surfaceView
+ 
+2. Start scanning:
+ 
+    fbs.StartScan(
+       new BarcodeListener {
+          @override
+          onBarcodeFound(
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+For the actual app (I'll spare you the details), we had a cradle made in plexiglass
+ 
+The demo app is written a proof-of-concept for low-cost ticket verification for small-scale events: one person
+ 
+In one scenario, the phone with the app is mounted in a fixed position and the tickets being verified are moved past the scanner. For the proof-of-
+concept, we had a simple cradle made in plexiglass,
+ 
+If the QR code printed on the ticket is decoded and verified as authentic, the screen flashes green.
+ 
+The demo app is a simplified version: it simply vibrates and displays the contents of the QR code
+1. Place the phone in a fixed position over a well-lit surface. For our project, we had a cradle made in plexiglass:
+2. Start the app and press "start".
+3. The phone will now focus the camera, and look for QR codes as fast as the camera can supply images (on my Nexus 5, I get a rate of 6-10 fps)
+4. Every QR code found will be displayed on-screen ("null" if no QR codes are found)   
+ 
+Using the library
+Using the library in you own app is simple - below I'll go through the steps using Android Studio
+ 
+1. Create a blank app project using Android Studio
+2. Reference fastbarcodescanner#1.0.4 by adding it to the build.gradle dependencies list
+2. Add 2 b
+ 
+The fastbarcodescanner.aar library contains the class dk.schaumburgit.fastbarcodescanner... class
+
+
+
+
+#Previous
 The FastBarcodeScanner package is a Java library letting you continuously take still pictures and search them for QR codes - without requiring any user involvment.
 
 The entire process happpens in a background thread, without any user interface components (i.e. you will **not** see any camera window opening).
