@@ -313,6 +313,9 @@ public class FocusManager {
      * finished.
      */
     public void stop() {
+        if (mStateMachine == null)
+            return;
+
         try {
             mStateMachine.close();
             mStateMachine = null;
@@ -443,6 +446,7 @@ public class FocusManager {
                         );
 
                         mCameraCaptureSession.stopRepeating();
+                        Log.i(TAG, "Stopped repeating");
 
                         //// TODO: is this used at all...?
                         //mCameraCaptureSession.setRepeatingRequest(
@@ -460,16 +464,6 @@ public class FocusManager {
                 mPreviewRequestBuilder = null;
             }
 
-            if (mFocusingStateMachineThread != null) {
-                try {
-                    mFocusingStateMachineThread.quitSafely();
-                    mFocusingStateMachineThread.join();
-                    mFocusingStateMachineThread = null;
-                    mFocusingStateMachineHandler = null;
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
         }
 
         @Override
@@ -484,6 +478,26 @@ public class FocusManager {
                                        CaptureRequest request,
                                        TotalCaptureResult result) {
             process(result);
+        }
+
+        @Override
+        public void onCaptureSequenceCompleted(CameraCaptureSession session, int sequenceId, long frameNumber) {
+            super.onCaptureSequenceCompleted(session, sequenceId, frameNumber);
+            if (mState == STATE_IDLE)
+            {
+                if (mFocusingStateMachineThread != null) {
+                    Log.i(TAG, "Killed focusing thread");
+                    try {
+                        mFocusingStateMachineHandler.removeCallbacksAndMessages(null);
+                        mFocusingStateMachineThread.quitSafely();
+                        mFocusingStateMachineThread.join();
+                        mFocusingStateMachineThread = null;
+                        mFocusingStateMachineHandler = null;
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
         }
 
         private void process(CaptureResult result) {

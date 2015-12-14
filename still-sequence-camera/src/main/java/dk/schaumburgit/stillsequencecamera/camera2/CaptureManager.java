@@ -24,7 +24,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import dk.schaumburgit.stillsequencecamera.IStillSequenceCamera;
 
@@ -36,7 +38,6 @@ public class CaptureManager {
 
     private final Activity mActivity;
     private final int mMinPixels;
-    private final int[] mPrioritizedFormats;
 
     // Set by setup(), freed by close():
     private ImageReader mImageReader;
@@ -46,7 +47,7 @@ public class CaptureManager {
     private CameraCaptureSession mCameraCaptureSession;
     private CaptureRequest mStillCaptureRequest = null;
 
-    public CaptureManager(Activity activity, int[] prioritizedImageFormats, int minPixels)
+    public CaptureManager(Activity activity, int minPixels)
     {
         if (activity==null)
             throw new NullPointerException("CaptureManager requires an Activity");
@@ -56,11 +57,9 @@ public class CaptureManager {
         if (minPixels < 1024*768)
             minPixels = 1024*768;
         this.mMinPixels = minPixels;
-
-        this.mPrioritizedFormats = prioritizedImageFormats;
     }
 
-    public void setup(String cameraId) {
+    public Map<Integer,Double> getSupportedImageFormats(String cameraId) {
         try {
             CameraManager manager = (CameraManager) mActivity.getSystemService(Context.CAMERA_SERVICE);
             StreamConfigurationMap map = manager
@@ -71,17 +70,93 @@ public class CaptureManager {
                 throw new UnsupportedOperationException("Insufficient camera info available");
             }
 
-            // Choose an output format:
-            // ========================
-            int outputFormat = ImageFormat.JPEG;
-            if (mPrioritizedFormats != null) {
-                for (int preferredFormat : mPrioritizedFormats) {
-                    if (map.isOutputSupportedFor(preferredFormat)) {
-                        outputFormat = preferredFormat;
-                        break;
-                    }
-                }
+            Map<Integer, Double> res = new HashMap<Integer, Double>();
+            for (int format : map.getOutputFormats()) {
+                res.put(format, getFormatCost(format));
+                Log.i(TAG, "CAMERA FORMAT: " + format);
             }
+
+            return res;
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        } catch (NullPointerException e) {
+            // Currently an NPE is thrown when the Camera2API is used but not supported on the
+            // device this code runs.
+            Log.e(TAG, "Camera2 API is not supported");
+            throw new UnsupportedOperationException("Camera2 API is not supported");
+        }
+
+        return null;
+    }
+
+    private static double getFormatCost(int format)
+    {
+        switch (format)
+        {
+            case ImageFormat.UNKNOWN:
+                return 1.0;
+            case ImageFormat.NV21:
+                // Doc: ...The YUV_420_888 format is recommended for YUV output instead
+                return 0.7;
+            case ImageFormat.NV16:
+                // This format has never been seen in the wild, but is compatible as we only care
+                // about the Y channel, so allow it.
+                // Doc: ...The YUV_420_888 format is recommended for YUV output instead
+                return 0.8;
+            case ImageFormat.YV12:
+                // Doc: ...The YUV_420_888 format is recommended for YUV output instead
+                return 0.7;
+            case ImageFormat.YUY2:
+                // Doc: ...The YUV_420_888 format is recommended for YUV output instead
+                return 0.7;
+            case ImageFormat.YUV_420_888:
+                return 0.5; // pure guesswork - but it IS faster than JPEG
+            case ImageFormat.YUV_422_888:
+                // only varies from yuv_420_888 in chroma-subsampling, which I'm guessing
+                // doesn't affect the luminance much
+                // (see https://en.wikipedia.org/wiki/Chroma_subsampling)
+                return 0.5;
+            case ImageFormat.YUV_444_888:
+                // only varies from yuv_420_888 in chroma-subsampling, which I'm guessing
+                // doesn't affect the luminance much
+                // (see https://en.wikipedia.org/wiki/Chroma_subsampling)
+                return 0.5;
+            case ImageFormat.FLEX_RGB_888:
+            case ImageFormat.FLEX_RGBA_8888:
+            case ImageFormat.RGB_565:
+                return 0.8; // pure guesswork
+            case ImageFormat.JPEG:
+                return 1.0; // duh...?
+            case ImageFormat.RAW_SENSOR:
+            case ImageFormat.RAW10:
+            case ImageFormat.RAW12:
+                return 0.4; // pure guesswork - but any RAW format must be optimal (wrt capture speed)?
+            case ImageFormat.DEPTH16:
+            case ImageFormat.DEPTH_POINT_CLOUD:
+                return 1.5; // sound terribly complicated - but I'm just guessing....
+            //ImageFormat.Y8:
+            //ImageFormat.Y16:
+        }
+
+        return 1.0;
+    }
+
+    public void setup(String cameraId, int imageFormat) {
+        try {
+            CameraManager manager = (CameraManager) mActivity.getSystemService(Context.CAMERA_SERVICE);
+            StreamConfigurationMap map = manager
+                    .getCameraCharacteristics(cameraId)
+                    .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+
+            if (map == null) {
+                throw new UnsupportedOperationException("Insufficient camera info available");
+            }
+
+            // Check the output format:
+            // ========================
+            if (map.isOutputSupportedFor(imageFormat) == false)
+                throw new UnsupportedOperationException("Camera cannot capture images in format " + imageFormat);
+            int outputFormat = imageFormat;
 
             // Choose an image size:
             // =====================
@@ -153,7 +228,8 @@ public class CaptureManager {
                         Image image = reader.acquireLatestImage();
                         if (image != null) {
                             try {
-                                if (mImageListener != null) {
+                                IStillSequenceCamera.OnImageAvailableListener listener = mImageListener;
+                                if (listener != null) {
                                     byte[] bytes = null;
                                     int format = image.getFormat();
                                     int width = image.getWidth();
@@ -162,7 +238,7 @@ public class CaptureManager {
                                     ByteBuffer buffer = plane.getBuffer();
                                     bytes = new byte[buffer.remaining()];
                                     buffer.get(bytes);
-                                    mImageListener.onImageAvailable(format, bytes, width, height);
+                                    listener.onImageAvailable(format, bytes, width, height);
                                 }
                             } catch (Exception e) {
                                 Log.e(TAG, "Error extracting image", e);

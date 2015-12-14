@@ -27,17 +27,17 @@
         android:layout_height="wrap_content"
         android:layout_below="@+id/textView"
         android:id="@+id/textView2" />
-    <!--<SurfaceView
+    <SurfaceView
         android:layout_width="1dp"
         android:layout_height="1dp"
         android:id="@+id/preview"
         android:layout_below="@+id/textView2"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="0dp" />-->
+        android:layout_marginTop="0dp" />
     <TextureView
         android:layout_width="wrap_content"
         android:layout_height="140pt"
-        android:id="@+id/preview"
+        android:id="@+id/preview2"
         android:layout_below="@+id/textView2"
         android:layout_centerHorizontal="true"
         android:layout_marginTop="0dp" />

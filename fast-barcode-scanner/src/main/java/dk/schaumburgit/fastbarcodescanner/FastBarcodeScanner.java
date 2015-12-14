@@ -17,6 +17,9 @@ package dk.schaumburgit.fastbarcodescanner;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.ImageFormat;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
@@ -30,6 +33,7 @@ import java.security.InvalidParameterException;
 import java.sql.Timestamp;
 import java.util.Date;
 import java.util.EnumSet;
+import java.util.Map;
 
 import dk.schaumburgit.stillsequencecamera.IStillSequenceCamera;
 import dk.schaumburgit.stillsequencecamera.camera.StillSequenceCamera;
@@ -64,6 +68,7 @@ public class FastBarcodeScanner
      */
     private static final String TAG = "FastBarcodeScanner";
 
+    private boolean mIncludeImagesInCallback = false;
     private Activity mActivity;
     private Handler mBarcodeListenerHandler;
     private HandlerThread mProcessingThread;
@@ -75,7 +80,7 @@ public class FastBarcodeScanner
 
     private final IStillSequenceCamera mImageSource;
     private final TrackingBarcodeScanner mBarcodeFinder;
-
+    private int mPictureFormat = -1;
     /**
      * Creates a headless FastBarcodeScanner (i.e. one without any UI)
      *
@@ -122,8 +127,35 @@ public class FastBarcodeScanner
 
         this.mActivity = activity;
         this.mBarcodeFinder = new TrackingBarcodeScanner();
-        this.mImageSource = new StillSequenceCamera2(activity, textureView, mBarcodeFinder.getPreferredImageFormats(), 1024*768);
-        this.mImageSource.setup();
+        this.mImageSource = new StillSequenceCamera2(activity, textureView, 1024*768);
+
+        Map<Integer, Double> cameraFormatCosts = mImageSource.getSupportedImageFormats();
+        Map<Integer, Double> zxingFormatCosts = mBarcodeFinder.getPreferredImageFormats();
+
+        mPictureFormat = calculateCheapestFormat(cameraFormatCosts, zxingFormatCosts);
+        this.mImageSource.setup(mPictureFormat);
+    }
+
+    private static int calculateCheapestFormat(Map<Integer, Double> cost1, Map<Integer, Double> cost2)
+    {
+        double bestYet = 1;
+        int result = ImageFormat.JPEG;
+        for (int format: cost1.keySet())
+        {
+            if (cost2.containsKey(format))
+            {
+                double c1 = cost1.get(format);
+                double c2 = cost2.get(format);
+                double totalCost = c1 * c2;
+
+                if (totalCost < bestYet)
+                {
+                    result = format;
+                    bestYet = totalCost;
+                }
+            }
+        }
+        return result;
     }
 
     /**
@@ -148,7 +180,13 @@ public class FastBarcodeScanner
         this.mActivity = activity;
         this.mBarcodeFinder = new TrackingBarcodeScanner();
         this.mImageSource = new StillSequenceCamera(activity, surfaceView);
-        this.mImageSource.setup();
+        //this.mImageSource.setup(ImageFormat.JPEG);
+
+        Map<Integer, Double> cameraFormatCosts = mImageSource.getSupportedImageFormats();
+        Map<Integer, Double> zxingFormatCosts = mBarcodeFinder.getPreferredImageFormats();
+
+        mPictureFormat = calculateCheapestFormat(cameraFormatCosts, zxingFormatCosts);
+        this.mImageSource.setup(mPictureFormat);
     }
 
     /**
@@ -246,7 +284,18 @@ public class FastBarcodeScanner
             Date third = new Date();
 
             // Tell the world:
-            onBarcodeFound(newBarcode);
+            Bitmap source = null;
+            if (mIncludeImagesInCallback)
+            {
+                BitmapFactory.Options opts = new BitmapFactory.Options();
+                opts.inPreferredConfig = Bitmap.Config.ARGB_8888; // JavaDoc: "...It should be used whenever possible."
+                opts.inDither = false;
+                source = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, opts);
+            }
+
+            onBarcodeFound(newBarcode, source);
+
+            // Performance tracing:
             Date fourth = new Date();
             if (false)
                 Log.v(
@@ -288,7 +337,7 @@ public class FastBarcodeScanner
     private String mLastReportedBarcode = null;
     private int mNoBarcodeCount = 0;
     private final int NO_BARCODE_IGNORE_LIMIT = 5;
-    private void onBarcodeFound(String barcode)
+    private void onBarcodeFound(String barcode, Bitmap source)
     {
         //mBarcodeListener.onBarcodeAvailable(barcode);
         //Log.d(TAG, "Scanned " + barcode);
@@ -300,7 +349,7 @@ public class FastBarcodeScanner
             mNoBarcodeCount++;
             if (mLastReportedBarcode != null && mNoBarcodeCount >= NO_BARCODE_IGNORE_LIMIT) {
                 mLastReportedBarcode = null;
-                _onBarcode(mLastReportedBarcode);
+                _onBarcode(mLastReportedBarcode, source);
             }
         }
         else
@@ -309,19 +358,19 @@ public class FastBarcodeScanner
             if (!barcode.equals(mLastReportedBarcode))
             {
                 mLastReportedBarcode = barcode;
-                _onBarcode(mLastReportedBarcode);
+                _onBarcode(mLastReportedBarcode, source);
             }
         }
     }
 
-    private void _onBarcode(final String barcode)
+    private void _onBarcode(final String barcode, final Bitmap source)
     {
         if (mBarcodeListener != null) {
             mBarcodeListenerHandler.post(
                     new Runnable() {
                         @Override
                         public void run() {
-                            mBarcodeListener.onBarcodeAvailable(barcode);
+                            mBarcodeListener.onBarcodeAvailable(barcode, source);
                         }
                     }
             );
@@ -334,6 +383,7 @@ public class FastBarcodeScanner
         if (mBarcodeListener != null)
             mBarcodeListener.onError(error);
     }
+
 
     //*********************************************************************
     //*********************************************************************
@@ -357,7 +407,7 @@ public class FastBarcodeScanner
          *
          * @param barcode the barcode detected.
          */
-        void onBarcodeAvailable(String barcode);
+        void onBarcodeAvailable(String barcode, Bitmap source);
 
         void onError(Exception error);
     }
@@ -404,5 +454,16 @@ public class FastBarcodeScanner
     public void setLockFocus(boolean lockFocus) {
         mImageSource.setLockFocus(lockFocus);
     }
-}
+
+    public boolean isIncludeImagesInCallback() {
+        return mIncludeImagesInCallback;
+    }
+
+    public void setIncludeImagesInCallback(boolean mIncludeImagesInCallback) {
+        this.mIncludeImagesInCallback = mIncludeImagesInCallback;
+    }
+
+    public int getPictureFormat() {
+        return mPictureFormat;
+    }}
 

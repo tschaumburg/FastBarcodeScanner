@@ -24,6 +24,7 @@ import java.nio.IntBuffer;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.Hashtable;
+import java.util.Map;
 
 /**
  * The TrackingBarcodeScanner class looks for barcodes in the images supplied by the called.
@@ -66,7 +67,34 @@ public class TrackingBarcodeScanner {
      */
     private static final String TAG = "BarcodeFinder";
 
-    private static final int[] mPreferredImageFormats = {ImageFormat.YUV_420_888, ImageFormat.JPEG};
+    private static final int[] mAllImageFormats =
+            {
+                    ImageFormat.UNKNOWN,
+                    ImageFormat.RGB_565,
+                    ImageFormat.YV12,
+                    //ImageFormat.Y8,
+                    //ImageFormat.Y16,
+                    ImageFormat.NV16,
+                    ImageFormat.NV21,
+                    //ImageFormat.YUY2,
+                    ImageFormat.JPEG,
+                    ImageFormat.YUV_420_888,
+                    ImageFormat.YUV_422_888,
+                    ImageFormat.YUV_444_888,
+                    ImageFormat.FLEX_RGB_888,
+                    ImageFormat.FLEX_RGBA_8888,
+                    ImageFormat.RAW_SENSOR,
+                    ImageFormat.RAW10,
+                    ImageFormat.RAW12,
+                    ImageFormat.DEPTH16,
+                    ImageFormat.DEPTH_POINT_CLOUD,
+            };
+
+    private static final int[] mPreferredImageFormats =
+            {
+                    ImageFormat.YUV_420_888,
+                    ImageFormat.JPEG
+            };
     private boolean mUseTracking = true;
     private double mRelativeTrackingMargin = 1.0;
     private int mNoHitsBeforeTrackingLoss = 5;
@@ -89,42 +117,18 @@ public class TrackingBarcodeScanner {
     public Date g;
     public String find(int imageFormat, int w, int h, byte[] bytes)
     {
+        if (LuminanceSourceFactory.isFormatSupported(imageFormat) == false)
+            throw new UnsupportedOperationException("ZXing cannot process images of type " + imageFormat);
+
         a = new Date();
         // First we'll convert into a BinaryBitmap:
         BinaryBitmap bitmap = null;
         try {
-            switch (imageFormat) {
-                case ImageFormat.JPEG:
-                    // from JPEG
-                    // =========
-                    // ZXing doesn't accept a JPEG-encoded byte array, so we let Java
-                    // decode into a Bitmap:
-                    Bitmap bm = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
-                    b = new Date();
-                    int width = bm.getWidth();
-                    int height = bm.getHeight();
-                    int length = bytes.length;
-
-                    // This is then turned into an uncompressed array-of-ints:
-                    IntBuffer pixelBuffer = IntBuffer.allocate(width * height);
-                    bm.copyPixelsToBuffer(pixelBuffer);
-                    int[] pixelArray = new int[pixelBuffer.rewind().remaining()];
-                    pixelBuffer.get(pixelArray);
-                    c = new Date();
-
-                    // ...and THAT (finally), ZXing is happy about:
-                    LuminanceSource lumSource = new RGBLuminanceSource(width, height, pixelArray);// PlanarYUVLuminanceSource(bytes, width, height, 0, 0, width, height, false);
-                    d = new Date();
-                    bitmap = new BinaryBitmap(new HybridBinarizer(lumSource));
-                    f = new Date();
-                    break;
-                case ImageFormat.YUV_420_888:
-                    LuminanceSource lumSourceYUV = new PlanarYUVLuminanceSource(bytes, w, h, 0, 0, w, h , false);
-                    b = new Date();
-                    bitmap = new BinaryBitmap(new HybridBinarizer(lumSourceYUV));
-                    c = new Date();
-                    break;
-            }
+            c = new Date();
+            LuminanceSource lumSource = LuminanceSourceFactory.getLuminanceSource(imageFormat, bytes, w, h);
+            d = new Date();
+            bitmap = new BinaryBitmap(new HybridBinarizer(lumSource));
+            f = new Date();
         } catch (Exception e) {
             Log.e(TAG, "failed reading captured image", e);
             return null;
@@ -257,9 +261,9 @@ public class TrackingBarcodeScanner {
         this.mUseTracking = useTracking;
     }
 
-    public int[] getPreferredImageFormats()
+    public Map<Integer, Double> getPreferredImageFormats()
     {
-        return mPreferredImageFormats;
+        return LuminanceSourceFactory.SUPPORTED_FORMAT_COSTS;
     }
 }
 

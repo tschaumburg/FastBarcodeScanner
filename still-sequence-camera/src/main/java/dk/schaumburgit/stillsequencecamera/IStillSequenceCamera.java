@@ -6,12 +6,14 @@ import android.os.Handler;
 import android.view.TextureView;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Created by Thomas Schaumburg on 21-11-2015.
  */
 public interface IStillSequenceCamera {
-    void setup();
+    Map<Integer,Double> getSupportedImageFormats();
+    void setup(int imageFormat);
     void start(OnImageAvailableListener listener, Handler callbackHandler);
     void stop();
     void close();

@@ -9,6 +9,8 @@ import android.app.Fragment;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.ImageFormat;
 import android.os.Bundle;
 import android.os.Vibrator;
 import android.support.annotation.NonNull;
@@ -57,8 +59,8 @@ public class MainActivity extends AppCompatActivity
             }
         });
 
-        //mSurfaceView = (SurfaceView)findViewById(R.id.preview);
-        mTextureView = (TextureView)findViewById(R.id.preview);
+        mSurfaceView = (SurfaceView)findViewById(R.id.preview);
+        mTextureView = (TextureView)findViewById(R.id.preview2);
     }
 
     @Override
@@ -90,6 +92,7 @@ public class MainActivity extends AppCompatActivity
         if (mScanner == null) {
             //mScanner = new FastBarcodeScanner(this, (TextureView)null);
             mScanner = new FastBarcodeScanner(this, mTextureView);
+            //mScanner = new FastBarcodeScanner(this, mSurfaceView);
             //mScanner.setScanningStateListener(this);
         }
 
@@ -97,7 +100,8 @@ public class MainActivity extends AppCompatActivity
         Button stopButton = (Button)findViewById(R.id.button3);
 
         startButton.setEnabled(false);
-        mScanner.setLockFocus(false);
+        mScanner.setLockFocus(true);
+        //mScanner.setIncludeImagesInCallback(true);
         mScanner.StartScan(this, null);
         stopButton.setEnabled(true);
     }
@@ -127,11 +131,11 @@ public class MainActivity extends AppCompatActivity
 
     private String mLatestBarcode;
     @Override
-    public void onBarcodeAvailable(final String barcode) {
+    public void onBarcodeAvailable(final String barcode, Bitmap source) {
         mLatestBarcode = (barcode == null) ? "none" : barcode;
         final TextView resView = (TextView) findViewById(R.id.textView);
 
-        Log.d(TAG, "DETECTED BARCODE " + barcode);
+        Log.d(TAG, "DETECTED BARCODE " + barcode + " (format " + formatFormat(mScanner.getPictureFormat()) + ")");
 
         this.runOnUiThread(
                 new Runnable() {
@@ -149,6 +153,52 @@ public class MainActivity extends AppCompatActivity
                 v.vibrate(100);
             }
         }
+    }
+
+    private String formatFormat(int imageFormat)
+    {
+        switch (imageFormat)
+        {
+            case ImageFormat.UNKNOWN:
+                return "UNKNOWN";
+            case ImageFormat.NV21:
+                return "NV21";
+            case ImageFormat.NV16:
+                return "NV16";
+            case ImageFormat.YV12:
+                return "YV12";
+            case ImageFormat.YUY2:
+                return "YUY2";
+            case ImageFormat.YUV_420_888:
+                return "YUV_420_888";
+            case ImageFormat.YUV_422_888:
+                return "YUV_422_888";
+            case ImageFormat.YUV_444_888:
+                return "YUV_444_888";
+            case ImageFormat.FLEX_RGB_888:
+                return "FLEX_RGB_888";
+            case ImageFormat.FLEX_RGBA_8888:
+                return "FLEX_RGBA_8888";
+            case ImageFormat.JPEG:
+                return "JPEG";
+            case ImageFormat.RGB_565:
+                return "RGB_565";
+            case ImageFormat.RAW_SENSOR:
+                return "RAW_SENSOR";
+            case ImageFormat.RAW10:
+                return "RAW10";
+            case ImageFormat.RAW12:
+                return "RAW12";
+            case ImageFormat.DEPTH16:
+                return "DEPTH16";
+            case ImageFormat.DEPTH_POINT_CLOUD:
+                return "DEPTH_POINT_CLOUD";
+            //case ImageFormat.Y8:
+            //case ImageFormat.Y16:
+
+        }
+
+        return "" + imageFormat;
     }
 
     @Override

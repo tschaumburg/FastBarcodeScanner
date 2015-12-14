@@ -16,6 +16,7 @@ import android.util.Log;
 import android.view.TextureView;
 
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -37,7 +38,7 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
     private HandlerThread mFocusThread;
     private Handler mFocusHandler;
     private CameraCaptureSession mCaptureSession;
-    private String mCameraId;
+    private final String mCameraId;
     private CameraDevice mCameraDevice;
     private Semaphore mCameraOpenCloseLock = new Semaphore(1);
 
@@ -61,34 +62,30 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
      */
     public StillSequenceCamera2(Activity activity)
     {
-        this(activity, null, new int[] {ImageFormat.JPEG}, 1024*768);
+        this(activity, null, 1024*768);
     }
 
     /**
      * Creates a headless #StillSequenceCamera2
      *
      * @param activity The activity associated with the calling app.
-     * @param prioritizedImageFormats The preferred formats to capture images in
-     *                                (see #ImageFormat for values)
      * @param minPixels The preferred minimum number of pixels in the captured images
      *                  (i.e. width*height)
      */
-    public StillSequenceCamera2(Activity activity, int[] prioritizedImageFormats, int minPixels)
+    public StillSequenceCamera2(Activity activity, int minPixels)
     {
-        this(activity, null, prioritizedImageFormats, minPixels);
+        this(activity, null, minPixels);
     }
 
     /**
      * Creates a #StillSequenceCamera2 with a preview
      *
      * @param activity The activity associated with the calling app.
-     * @param prioritizedImageFormats The preferred formats to capture images in
-     *                                (see #ImageFormat for values)
      * @param minPixels The preferred minimum number of pixels in the captured images
      *                  (i.e. width*height)
      * @param textureView The #TextureView to display the preview in (use null for headless scanning)
      */
-    public StillSequenceCamera2(Activity activity, TextureView textureView, int[] prioritizedImageFormats, int minPixels)
+    public StillSequenceCamera2(Activity activity, TextureView textureView, int minPixels)
     {
         if (activity==null)
             throw new NullPointerException("StillSequenceCamera2 requires an Activity");
@@ -99,32 +96,16 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
         this.mActivity = activity;
 
         mFocusManager = new FocusManager(activity, textureView);
-        mImageCapture = new CaptureManager(activity, prioritizedImageFormats, minPixels);
+        mImageCapture = new CaptureManager(activity, minPixels);
 
         mState = CLOSED;
-    }
 
-    /**
-     * Chooses a back-facing camera satisfying the requirements from the constructor (i.e. format
-     * and resolution).
-     *
-     *
-     *
-     * @throws IllegalStateException if the StillSequenceCamera2 is in any but the CLOSED state.
-     */
-    @Override
-    public void setup()
-            throws IllegalStateException
-    {
-        if (mState != CLOSED)
-            throw new IllegalStateException("StillSequenceCamera2.setup() can only be called in the CLOSED state");
-
-        CameraManager manager = (CameraManager) mActivity.getSystemService(Context.CAMERA_SERVICE);
-
+        // Choose a camera:
+        // ================
+        String selection = null;
         try {
-            // Choose a camera:
-            // ================
-            StreamConfigurationMap map = null;
+            CameraManager manager = (CameraManager) mActivity.getSystemService(Context.CAMERA_SERVICE);
+
             for (String cameraId : manager.getCameraIdList()) {
                 CameraCharacteristics characteristics
                         = manager.getCameraCharacteristics(cameraId);
@@ -134,12 +115,44 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                 if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
                     continue;
                 }
-                mCameraId = cameraId;
+                selection = cameraId;
             }
-            mImageCapture.setup(mCameraId);
-            mFocusManager.setup(mCameraId);
         } catch (CameraAccessException e) {
             e.printStackTrace();
+        } catch (NullPointerException e) {
+            // Currently an NPE is thrown when the Camera2API is used but not supported on the
+            // device this code runs.
+            Log.e(TAG, "Camera2 API is not supported");
+            throw new UnsupportedOperationException("Camera2 API is not supported");
+        }
+        mCameraId = selection;
+    }
+
+    @Override
+    public Map<Integer, Double> getSupportedImageFormats() {
+        return mImageCapture.getSupportedImageFormats(mCameraId);
+    }
+
+    /**
+     * Chooses a back-facing camera satisfying the requirements from the constructor (i.e. format
+     * and resolution).
+     *
+     *
+     * @param imageFormat The preferred format to capture images in
+     *                                (see #ImageFormat for values)
+     *
+     * @throws IllegalStateException if the StillSequenceCamera2 is in any but the CLOSED state.
+     */
+    @Override
+    public void setup(int imageFormat)
+            throws IllegalStateException
+    {
+        if (mState != CLOSED)
+            throw new IllegalStateException("StillSequenceCamera2.setup() can only be called in the CLOSED state");
+
+        try {
+            mImageCapture.setup(mCameraId, imageFormat);
+            mFocusManager.setup(mCameraId);
         } catch (NullPointerException e) {
             // Currently an NPE is thrown when the Camera2API is used but not supported on the
             // device this code runs.

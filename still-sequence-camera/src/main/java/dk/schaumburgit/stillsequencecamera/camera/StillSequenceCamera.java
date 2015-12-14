@@ -11,6 +11,8 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import dk.schaumburgit.stillsequencecamera.IStillSequenceCamera;
 
@@ -19,7 +21,7 @@ import dk.schaumburgit.stillsequencecamera.IStillSequenceCamera;
  */
 public class StillSequenceCamera implements IStillSequenceCamera {
     private static final String TAG = "StillSequenceCamera";
-    private int mCameraId = -1;
+    private final int mCameraId;
     private Camera mCamera;
     private final Activity mActivity;
     private final SurfaceView mPreview;
@@ -36,6 +38,86 @@ public class StillSequenceCamera implements IStillSequenceCamera {
         mActivity = activity;
         mPreview = preview;
         mState = CLOSED;
+
+        // Open a camera:
+        int chosenCameraId = -1;
+        //get the number of cameras
+        int numberOfCameras = Camera.getNumberOfCameras();
+        //for every camera check
+        for (int i = 0; i < numberOfCameras; i++) {
+            CameraInfo info = new CameraInfo();
+            Camera.getCameraInfo(i, info);
+            if (info.facing == CameraInfo.CAMERA_FACING_BACK) {
+                chosenCameraId = i;
+                break;
+            }
+        }
+
+        if (chosenCameraId < 0)
+            throw new UnsupportedOperationException("Cannot find a back-facing camera");
+
+        mCameraId = chosenCameraId;
+
+        // Open a camera:
+        mCamera = Camera.open(mCameraId);
+    }
+
+    @Override
+    public Map<Integer, Double> getSupportedImageFormats()
+    {
+        Map<Integer, Double> res = new HashMap<Integer, Double>();
+
+        for (int format : mCamera.getParameters().getSupportedPictureFormats()) {
+            res.put(format, getFormatCost(format));
+            Log.i(TAG, "CAMERA FORMAT: " + format);
+        }
+        return res;
+    }
+
+    private static double getFormatCost(int format)
+    {
+        switch (format)
+        {
+            case ImageFormat.UNKNOWN:
+                return 1.0;
+            case ImageFormat.NV21:
+                return 0.8;
+            case ImageFormat.NV16:
+                // This format has never been seen in the wild, but is compatible as we only care
+                // about the Y channel, so allow it.
+                return 0.8;
+            case ImageFormat.YV12:
+            case ImageFormat.YUY2:
+            case ImageFormat.YUV_420_888:
+                return 0.5; // pure guesswork - but it IS faster than JPEG
+            case ImageFormat.YUV_422_888:
+                // only varies from yuv_420_888 in chroma-subsampling, which I'm guessing
+                // doesn't affect the luminance much
+                // (see https://en.wikipedia.org/wiki/Chroma_subsampling)
+                return 0.5;
+            case ImageFormat.YUV_444_888:
+                // only varies from yuv_420_888 in chroma-subsampling, which I'm guessing
+                // doesn't affect the luminance much
+                // (see https://en.wikipedia.org/wiki/Chroma_subsampling)
+                return 0.5;
+            case ImageFormat.FLEX_RGB_888:
+            case ImageFormat.FLEX_RGBA_8888:
+            case ImageFormat.RGB_565:
+                return 0.8; // pure guesswork
+            case ImageFormat.JPEG:
+                return 1.0; // duh...?
+            case ImageFormat.RAW_SENSOR:
+            case ImageFormat.RAW10:
+            case ImageFormat.RAW12:
+                return 0.4; // pure guesswork - but any RAW format must be optimal (wrt capture speed)?
+            case ImageFormat.DEPTH16:
+            case ImageFormat.DEPTH_POINT_CLOUD:
+                return 1.5; // sound terribly complicated - but I'm just guessing....
+            //ImageFormat.Y8:
+            //ImageFormat.Y16:
+        }
+
+        return 1.0;
     }
 
     /**
@@ -51,33 +133,15 @@ public class StillSequenceCamera implements IStillSequenceCamera {
      *     camera is in use by another process or device policy manager has
      *     disabled the camera).
      */
-    public void setup()
+    public void setup(int format)
             throws UnsupportedOperationException, IllegalStateException
     {
-        if (mCamera != null || mState != CLOSED)
+        if (mState != CLOSED)
             throw new IllegalStateException("StillSequenceCamera.setup() can only be called on a new instance");
-
-        // Open a camera:
-        mCameraId = -1;
-        //get the number of cameras
-        int numberOfCameras = Camera.getNumberOfCameras();
-        //for every camera check
-        for (int i = 0; i < numberOfCameras; i++) {
-            CameraInfo info = new CameraInfo();
-            Camera.getCameraInfo(i, info);
-            if (info.facing == CameraInfo.CAMERA_FACING_BACK) {
-                mCameraId = i;
-                break;
-            }
-        }
-
-        if (mCameraId < 0)
-            throw new UnsupportedOperationException("Cannot find a back-facing camera");
-
-        mCamera = Camera.open(mCameraId);
 
         Camera.Parameters pars = mCamera.getParameters();
         pars.setPictureSize(1024, 768);
+        pars.setPictureFormat(format);
         pars.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
         mCamera.setParameters(pars);
 
@@ -211,7 +275,6 @@ public class StillSequenceCamera implements IStillSequenceCamera {
             mCamera.release();
             mCamera = null;
         }
-        mCameraId = -1;
         mImageListener = null;
 
         mState = CLOSED;
