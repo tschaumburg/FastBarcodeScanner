@@ -105,22 +105,22 @@ public class CaptureManager {
                 return 0.8;
             case ImageFormat.YV12:
                 // Doc: ...The YUV_420_888 format is recommended for YUV output instead
-                return 0.7;
+                return 0.8;
             case ImageFormat.YUY2:
                 // Doc: ...The YUV_420_888 format is recommended for YUV output instead
-                return 0.7;
+                return 0.8;
             case ImageFormat.YUV_420_888:
-                return 0.5; // pure guesswork - but it IS faster than JPEG
+                return 0.71; // measured on a Nexus 6P (0.64) and 5X (0.78)
             case ImageFormat.YUV_422_888:
                 // only varies from yuv_420_888 in chroma-subsampling, which I'm guessing
                 // doesn't affect the luminance much
                 // (see https://en.wikipedia.org/wiki/Chroma_subsampling)
-                return 0.5;
+                return 0.71;
             case ImageFormat.YUV_444_888:
                 // only varies from yuv_420_888 in chroma-subsampling, which I'm guessing
                 // doesn't affect the luminance much
                 // (see https://en.wikipedia.org/wiki/Chroma_subsampling)
-                return 0.5;
+                return 0.71;
             case ImageFormat.FLEX_RGB_888:
             case ImageFormat.FLEX_RGBA_8888:
             case ImageFormat.RGB_565:
@@ -128,12 +128,14 @@ public class CaptureManager {
             case ImageFormat.JPEG:
                 return 1.0; // duh...?
             case ImageFormat.RAW_SENSOR:
+                return 2.02; // measured on a Nexus 6P (2.06) and 5X ()1.98) - surprisingly *slower* than JPEG!
             case ImageFormat.RAW10:
+                return 0.66; // measured on a Nexus 6P (0.64) and 5X (0.67)
             case ImageFormat.RAW12:
-                return 0.4; // pure guesswork - but any RAW format must be optimal (wrt capture speed)?
+                return 0.66; // guesswork - setting it to the same as RAW10
             case ImageFormat.DEPTH16:
             case ImageFormat.DEPTH_POINT_CLOUD:
-                return 1.5; // sound terribly complicated - but I'm just guessing....
+                return 2.5; // sound terribly complicated - but I'm just guessing....
             //ImageFormat.Y8:
             //ImageFormat.Y16:
         }

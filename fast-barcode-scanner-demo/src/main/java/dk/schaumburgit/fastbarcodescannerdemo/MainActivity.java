@@ -90,8 +90,8 @@ public class MainActivity extends AppCompatActivity
         requestCameraPermission();
 
         if (mScanner == null) {
-            //mScanner = new FastBarcodeScanner(this, (TextureView)null);
-            mScanner = new FastBarcodeScanner(this, mTextureView);
+            mScanner = new FastBarcodeScanner(this, (TextureView)null);
+            //mScanner = new FastBarcodeScanner(this, mTextureView);
             //mScanner = new FastBarcodeScanner(this, mSurfaceView);
             //mScanner.setScanningStateListener(this);
         }
