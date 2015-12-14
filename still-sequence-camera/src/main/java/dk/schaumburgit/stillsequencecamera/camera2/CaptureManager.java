@@ -13,6 +13,7 @@ import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
@@ -91,6 +92,9 @@ public class CaptureManager {
 
     private static double getFormatCost(int format)
     {
+        // TODO: 14-12-2015
+        // Consider introducing *device profiles* for image format capture costs
+        // - relative costs of various formats will probably depend on eg. hardware encoder support.
         switch (format)
         {
             case ImageFormat.UNKNOWN:
@@ -181,7 +185,7 @@ public class CaptureManager {
             // Set up the still image reader:
             // ==============================
             mImageReader = ImageReader.newInstance(captureSize.getWidth(), captureSize.getHeight(),
-                    outputFormat, /*maxImages*/2);
+                    outputFormat, /*maxImages*/4);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         } catch (NullPointerException e) {
@@ -200,7 +204,9 @@ public class CaptureManager {
         return mImageReader.getSurface();
     }
 
-    public void start(final CameraCaptureSession cameraCaptureSession, Handler cameraHandler, IStillSequenceCamera.OnImageAvailableListener listener)
+    private HandlerThread mInternalCaptureThread;
+    private Handler mInternalCaptureHandler;
+    public void start(final CameraCaptureSession cameraCaptureSession, final Handler callbackHandler, final IStillSequenceCamera.OnImageAvailableListener listener)
     {
         if (mImageReader == null)
             throw new IllegalStateException("CaptureManager: start() may only be called after setup() and before close()");
@@ -216,43 +222,81 @@ public class CaptureManager {
             return;
         }
 
+        // Use a dedicated thread for handling all the incoming images
+        mInternalCaptureThread = new HandlerThread("Camera Image Capture Background");
+        mInternalCaptureThread.start();
+        mInternalCaptureHandler = new Handler(mInternalCaptureThread.getLooper());
+
         mImageReader.setOnImageAvailableListener(
                 new ImageReader.OnImageAvailableListener() {
 
                     @Override
                     public void onImageAvailable(ImageReader reader) {
-                        // Important for performance: start the new capture as
-                        // soon as possible:
-                        // (capture is done using dedicated hardware, so it might
-                        // as well run while the CPU-intensive image processing
-                        // is performed)
-                        captureNext();
                         Image image = reader.acquireLatestImage();
                         if (image != null) {
-                            try {
-                                IStillSequenceCamera.OnImageAvailableListener listener = mImageListener;
-                                if (listener != null) {
-                                    byte[] bytes = null;
-                                    int format = image.getFormat();
-                                    int width = image.getWidth();
-                                    int height = image.getHeight();
-                                    Image.Plane plane = image.getPlanes()[0];
-                                    ByteBuffer buffer = plane.getBuffer();
-                                    bytes = new byte[buffer.remaining()];
-                                    buffer.get(bytes);
-                                    listener.onImageAvailable(format, bytes, width, height);
-                                }
-                            } catch (Exception e) {
-                                Log.e(TAG, "Error extracting image", e);
-                            } finally {
-                                // Important: free the image as soon as possible,
-                                // thus making room for a new capture to begin:
-                                image.close();
-                            }
+                            sendImageAvailable(image);
                         }
                     }
+
+                    private Image mLatestImage = null;
+                    private synchronized Image getLatestImage()
+                    {
+                        Image image = mLatestImage;
+                        mLatestImage = null;
+                        return image;
+                    }
+                    private synchronized void setLatestImage(Image image)
+                    {
+                        if (mLatestImage != null)
+                            mLatestImage.close();
+                        mLatestImage = image;
+                    }
+                    private void sendImageAvailable(Image image)
+                    {
+                        // begin protected region
+                        setLatestImage(image);
+                        // end protected region
+
+                        if (listener == null)
+                            return;
+
+                        callbackHandler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                // begin protected region
+                                Image image = getLatestImage();
+                                // end protected region
+
+                                if (image != null)
+                                {
+                                    try {
+                                        IStillSequenceCamera.OnImageAvailableListener listener = mImageListener;
+                                        if (listener != null) {
+                                            byte[] bytes = null;
+                                            int format = image.getFormat();
+                                            int width = image.getWidth();
+                                            int height = image.getHeight();
+                                            Image.Plane plane = image.getPlanes()[0];
+                                            ByteBuffer buffer = plane.getBuffer();
+                                            bytes = new byte[buffer.remaining()];
+                                            buffer.get(bytes);
+                                            // Important: free the image as soon as possible,
+                                            // thus making room for a new capture to begin:
+                                            image.close();
+                                            image = null;
+                                            listener.onImageAvailable(format, bytes, width, height);
+                                        }
+                                    } catch (Exception e) {
+                                        if (image != null)
+                                            image.close();
+                                        Log.e(TAG, "Error extracting image", e);
+                                    }
+                                }
+                            }
+                        });
+                    }
                 },
-                cameraHandler
+                mInternalCaptureHandler
         );
 
         try {
@@ -265,7 +309,7 @@ public class CaptureManager {
             captureBuilder.set(CaptureRequest.CONTROL_AF_MODE,
                     CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
             captureBuilder.set(CaptureRequest.CONTROL_AE_MODE,
-                    CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
+                    CaptureRequest.CONTROL_AE_MODE_ON);
 
             // Orientation
             int rotation = mActivity.getWindowManager().getDefaultDisplay().getRotation();
@@ -273,7 +317,30 @@ public class CaptureManager {
 
             mStillCaptureRequest = captureBuilder.build();
 
-            captureNext();
+            //captureNext();
+            mCameraCaptureSession.setRepeatingRequest(
+                    mStillCaptureRequest,
+                    new CameraCaptureSession.CaptureCallback (){
+                        @Override
+                        public void onCaptureSequenceCompleted(CameraCaptureSession session, int sequenceId, long frameNumber) {
+                            super.onCaptureSequenceCompleted(session, sequenceId, frameNumber);
+                            {
+                                if (mInternalCaptureThread != null) {
+                                    Log.i(TAG, "Killed capture thread");
+                                    try {
+                                        mInternalCaptureHandler.removeCallbacksAndMessages(null);
+                                        mInternalCaptureThread.quitSafely();
+                                        mInternalCaptureThread.join();
+                                        mInternalCaptureThread = null;
+                                        mInternalCaptureHandler = null;
+                                    } catch (Exception e) {
+                                        e.printStackTrace();
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    mInternalCaptureHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }

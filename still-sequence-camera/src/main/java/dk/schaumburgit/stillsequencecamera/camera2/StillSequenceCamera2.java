@@ -218,9 +218,9 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                                                             public void focusLocked() {
                                                                 //startCapturePhase();
                                                                 mState = CAPTURING;
-                                                                mImageCapture.start(mCaptureSession, _callbackHandler, listener);
                                                                 if (mLockFocus)
                                                                     mFocusManager.stop();
+                                                                mImageCapture.start(mCaptureSession, _callbackHandler, listener);
                                                             }
 
                                                             @Override
