@@ -5,13 +5,19 @@ import android.graphics.ImageFormat;
 import android.hardware.Camera;
 import android.hardware.Camera.CameraInfo;
 import android.hardware.Camera.PictureCallback;
+import android.media.Image;
 import android.os.Handler;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import dk.schaumburgit.stillsequencecamera.IStillSequenceCamera;
@@ -24,6 +30,7 @@ public class StillSequenceCamera implements IStillSequenceCamera {
     private final int mCameraId;
     private Camera mCamera;
     private final Activity mActivity;
+    private final int mMinPixels;
     private final SurfaceView mPreview;
     private IStillSequenceCamera.OnImageAvailableListener mImageListener = null;
     private Handler mCallbackHandler;
@@ -33,11 +40,14 @@ public class StillSequenceCamera implements IStillSequenceCamera {
     private boolean mLockFocus = true;
     private int mState = CLOSED;
 
-    public StillSequenceCamera(Activity activity, SurfaceView preview)
-    {
+    public StillSequenceCamera(Activity activity, SurfaceView preview, int minPixels) {
         mActivity = activity;
         mPreview = preview;
         mState = CLOSED;
+
+        if (minPixels < 1024*768)
+            minPixels = 1024*768;
+        this.mMinPixels = minPixels;
 
         // Open a camera:
         int chosenCameraId = -1;
@@ -63,8 +73,7 @@ public class StillSequenceCamera implements IStillSequenceCamera {
     }
 
     @Override
-    public Map<Integer, Double> getSupportedImageFormats()
-    {
+    public Map<Integer, Double> getSupportedImageFormats() {
         Map<Integer, Double> res = new HashMap<Integer, Double>();
 
         for (int format : mCamera.getParameters().getSupportedPictureFormats()) {
@@ -74,10 +83,8 @@ public class StillSequenceCamera implements IStillSequenceCamera {
         return res;
     }
 
-    private static double getFormatCost(int format)
-    {
-        switch (format)
-        {
+    private static double getFormatCost(int format) {
+        switch (format) {
             case ImageFormat.UNKNOWN:
                 return 1.0;
             case ImageFormat.NV21:
@@ -122,27 +129,49 @@ public class StillSequenceCamera implements IStillSequenceCamera {
 
     /**
      * Selects a back-facing camera, opens it and starts focusing.
-     *
+     * <p/>
      * The #start() method can be called immediately when this method returns
-     *
+     * <p/>
      * If setup() returns successfully, the StillSequenceCamera enters the INITIALIZED state.
      *
-     * @throws IllegalStateException if the StillSequenceCamera is in any but the CLOSED state
+     * @throws IllegalStateException         if the StillSequenceCamera is in any but the CLOSED state
      * @throws UnsupportedOperationException if no back-facing camera is available
-     * @throws RuntimeException if opening the camera fails (for example, if the
-     *     camera is in use by another process or device policy manager has
-     *     disabled the camera).
+     * @throws RuntimeException              if opening the camera fails (for example, if the
+     *                                       camera is in use by another process or device policy manager has
+     *                                       disabled the camera).
      */
     public void setup(int format)
-            throws UnsupportedOperationException, IllegalStateException
-    {
+            throws UnsupportedOperationException, IllegalStateException {
         if (mState != CLOSED)
             throw new IllegalStateException("StillSequenceCamera.setup() can only be called on a new instance");
 
         Camera.Parameters pars = mCamera.getParameters();
-        pars.setPictureSize(1024, 768);
+
         pars.setPictureFormat(format);
         pars.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+
+        // Choose an image size:
+        // =====================
+        List<Camera.Size> choices = pars.getSupportedPictureSizes();
+
+        // We'll prefer the smallest size larger than mMinPixels (default 1024*768)
+        List<Camera.Size> bigEnough = new ArrayList<>();
+        for (Camera.Size option : choices) {
+            if (option.width * option.height >= mMinPixels) {
+                bigEnough.add(option);
+            }
+        }
+
+        Camera.Size captureSize = null;
+        if (bigEnough.isEmpty())
+            captureSize = Collections.max(choices, new CompareSizesByArea());
+        else
+            captureSize = Collections.min(bigEnough, new CompareSizesByArea());
+        pars.setPictureSize(captureSize.width, captureSize.height);
+        //pars.setPictureSize(1024, 768);
+
+        // Set the parameters:
+        // ===================
         mCamera.setParameters(pars);
 
         mState = INITIALIZED;
@@ -151,19 +180,17 @@ public class StillSequenceCamera implements IStillSequenceCamera {
     /**
      * Starts the preview (displaying it in the #SurfaceView provided in the constructor),
      * and starts taking pictures as rapidly as possible.
-     *
+     * <p/>
      * This continues until #stop() is called.
-     *
+     * <p/>
      * If start() returns successfully, the StillSequenceCamera enters the CAPTURING state.
      *
      * @param listener Every time a picture is taken, this callback interface is called.
-     *
      * @throws IllegalStateException if the StillSequenceCamera is in any but the INITIALIZED state
      */
     @Override
     public void start(OnImageAvailableListener listener, Handler callbackHandler)
-            throws IllegalStateException
-    {
+            throws IllegalStateException {
         if (mState != INITIALIZED)
             throw new IllegalStateException("StillSequenceCamera.start() can only be called in the INITIALIZED state");
 
@@ -233,14 +260,13 @@ public class StillSequenceCamera implements IStillSequenceCamera {
 
     /**
      * Stops the preview, and stops the capture of still images.
-     *
+     * <p/>
      * If stop() returns successfully, the StillSequenceCamera enters the STOPPED state.
      *
      * @throws IllegalStateException if stop is called in any but the STARTED state
      */
     public void stop()
-        throws IllegalStateException
-    {
+            throws IllegalStateException {
         if (mState == CLOSED)
             return;
 
@@ -283,8 +309,7 @@ public class StillSequenceCamera implements IStillSequenceCamera {
     private boolean mContinueTakingPictures = false;
 
     private void startTakingPictures()
-            throws IllegalStateException
-    {
+            throws IllegalStateException {
         if (mContinueTakingPictures)
             return;
 
@@ -295,13 +320,11 @@ public class StillSequenceCamera implements IStillSequenceCamera {
         takePicture();
     }
 
-    private void stopTakingPictures()
-    {
+    private void stopTakingPictures() {
         mContinueTakingPictures = false;
     }
 
-    private void takePicture()
-    {
+    private void takePicture() {
         mCamera.takePicture(
                 null,
                 null,
@@ -317,14 +340,14 @@ public class StillSequenceCamera implements IStillSequenceCamera {
                                     new Runnable() {
                                         @Override
                                         public void run() {
-                                            mImageListener.onImageAvailable(ImageFormat.JPEG, jpegData, size.width, size.height);
+                                            mImageListener.onJpegImageAvailable(jpegData, size.width, size.height);
                                         }
                                     }
                             );
                         }
                         if (mContinueTakingPictures) {
-                                    mCamera.startPreview();
-                                    takePicture();
+                            mCamera.startPreview();
+                            takePicture();
                         }
                     }
                 }
@@ -339,5 +362,19 @@ public class StillSequenceCamera implements IStillSequenceCamera {
     @Override
     public void setLockFocus(boolean lockFocus) {
         this.mLockFocus = lockFocus;
+    }
+
+    /**
+     * Compares two {@code Size}s based on their areas.
+     */
+    static class CompareSizesByArea implements Comparator<Camera.Size> {
+
+        @Override
+        public int compare(Camera.Size lhs, Camera.Size rhs) {
+            // We cast here to ensure the multiplications won't overflow
+            return Long.signum((long) lhs.width * lhs.height -
+                    (long) rhs.width * rhs.height);
+        }
+
     }
 }

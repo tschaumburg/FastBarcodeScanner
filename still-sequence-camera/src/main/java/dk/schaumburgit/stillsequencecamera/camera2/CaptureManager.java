@@ -258,7 +258,15 @@ public class CaptureManager {
                         // end protected region
 
                         if (listener == null)
+                        {
+                            image.close();
                             return;
+                        }
+
+                        if (image == null)
+                        {
+                            return;
+                        }
 
                         callbackHandler.post(new Runnable() {
                             @Override
@@ -267,30 +275,24 @@ public class CaptureManager {
                                 Image image = getLatestImage();
                                 // end protected region
 
-                                if (image != null)
+                                if (image == null)
                                 {
-                                    try {
-                                        IStillSequenceCamera.OnImageAvailableListener listener = mImageListener;
-                                        if (listener != null) {
-                                            byte[] bytes = null;
-                                            int format = image.getFormat();
-                                            int width = image.getWidth();
-                                            int height = image.getHeight();
-                                            Image.Plane plane = image.getPlanes()[0];
-                                            ByteBuffer buffer = plane.getBuffer();
-                                            bytes = new byte[buffer.remaining()];
-                                            buffer.get(bytes);
-                                            // Important: free the image as soon as possible,
-                                            // thus making room for a new capture to begin:
-                                            image.close();
-                                            image = null;
-                                            listener.onImageAvailable(format, bytes, width, height);
-                                        }
-                                    } catch (Exception e) {
-                                        if (image != null)
-                                            image.close();
-                                        Log.e(TAG, "Error extracting image", e);
-                                    }
+                                    return;
+                                }
+
+                                IStillSequenceCamera.OnImageAvailableListener listener = mImageListener;
+                                if (listener == null)
+                                {
+                                    image.close();
+                                    return;
+                                }
+
+                                try {
+                                    listener.onImageAvailable(image);
+                                } catch (Exception e) {
+                                    Log.e(TAG, "Error extracting image", e);
+                                } finally {
+                                    image.close();
                                 }
                             }
                         });

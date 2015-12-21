@@ -10,7 +10,11 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
+import android.graphics.Rect;
+import android.graphics.YuvImage;
+import android.media.Image;
 import android.os.Bundle;
 import android.os.Vibrator;
 import android.support.annotation.NonNull;
@@ -24,17 +28,23 @@ import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import java.io.ByteArrayOutputStream;
+
 import dk.schaumburgit.fastbarcodescanner.FastBarcodeScanner;
+import dk.schaumburgit.fastbarcodescanner.ImageDecoder;
+import dk.schaumburgit.fastbarcodescanner.JpegUtils;
 
 public class MainActivity extends AppCompatActivity
-        implements FastBarcodeScanner.BarcodeDetectedListener//, FastBarcodeScanner.ScanningStateListener
+        implements FastBarcodeScanner.BarcodeDetectedListener, FastBarcodeScanner.MultipleBarcodesDetectedListener//, FastBarcodeScanner.ScanningStateListener
 {
     private static final String TAG = "FastBarcodeScannerDemo";
     private SurfaceView mSurfaceView;
     private TextureView mTextureView;
+    private ImageView mImageView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,8 +69,9 @@ public class MainActivity extends AppCompatActivity
             }
         });
 
-        mSurfaceView = (SurfaceView)findViewById(R.id.preview);
-        mTextureView = (TextureView)findViewById(R.id.preview2);
+        //mSurfaceView = (SurfaceView)findViewById(R.id.preview);
+        //mTextureView = (TextureView)findViewById(R.id.preview2);
+        mImageView = (ImageView)findViewById(R.id.imageview);
     }
 
     @Override
@@ -90,8 +101,8 @@ public class MainActivity extends AppCompatActivity
         requestCameraPermission();
 
         if (mScanner == null) {
-            mScanner = new FastBarcodeScanner(this, (TextureView)null);
-            //mScanner = new FastBarcodeScanner(this, mTextureView);
+            mScanner = new FastBarcodeScanner(this, (TextureView)null, 4*1024*768);
+            //mScanner = new FastBarcodeScanner(this, mTextureView, 1024*768);
             //mScanner = new FastBarcodeScanner(this, mSurfaceView);
             //mScanner.setScanningStateListener(this);
         }
@@ -102,7 +113,7 @@ public class MainActivity extends AppCompatActivity
         startButton.setEnabled(false);
         mScanner.setLockFocus(true);
         //mScanner.setIncludeImagesInCallback(true);
-        mScanner.StartScan(this, null);
+        mScanner.StartMultiScan(true, this, null);
         stopButton.setEnabled(true);
     }
 
@@ -129,19 +140,67 @@ public class MainActivity extends AppCompatActivity
         spinner.setVisibility(View.INVISIBLE);
     }
 
-    private String mLatestBarcode;
     @Override
-    public void onBarcodeAvailable(final String barcode, Bitmap source) {
-        mLatestBarcode = (barcode == null) ? "none" : barcode;
+    public void onMultipleBarcodeAvailable(FastBarcodeScanner.BarcodeInfo[] barcodes, byte[] image, int format, int width, int height) {
+        String barcodesText = null;
+
+        if (barcodes != null && barcodes.length > 0)
+        {
+            barcodesText = "";
+            for (int n = 0; n < barcodes.length; n++)
+            {
+                barcodesText = barcodesText + ", " + barcodes[n].barcode;
+            }
+            barcodesText = "" + barcodes.length + ": " + barcodesText.substring(2);
+        }
+
+        final String latestBarcode = (barcodesText == null) ? "none" : barcodesText;
         final TextView resView = (TextView) findViewById(R.id.textView);
 
-        Log.d(TAG, "DETECTED BARCODE " + barcode + " (format " + formatFormat(mScanner.getPictureFormat()) + ")");
+        Log.v(TAG, "Start decode");
+        final Bitmap bm = (image == null) ? null : ImageDecoder.ToBitmap(image, format, width, height);
+        Log.v(TAG, "End decode " + ((image == null) ? 0 : image.length));
 
         this.runOnUiThread(
                 new Runnable() {
                     @Override
                     public void run() {
-                        resView.setText(mLatestBarcode);
+                        resView.setText(latestBarcode);
+                        if (bm != null)
+                            mImageView.setImageBitmap(bm);
+                    }
+                }
+        );
+
+        if (barcodesText != null) {
+            if (!"1: pfx:calibrator".equalsIgnoreCase(barcodesText)) {
+                Vibrator v = (Vibrator) this.getSystemService(Context.VIBRATOR_SERVICE);
+                // Vibrate for 100 milliseconds
+                v.vibrate(100);
+            }
+        }
+    }
+
+    @Override
+    public void onSingleBarcodeAvailable(FastBarcodeScanner.BarcodeInfo barcodeInfo, byte[] image, int format, int width, int height) {
+        String barcode = null;
+        if (barcodeInfo != null)
+            barcode = barcodeInfo.barcode;
+
+        final String latestBarcode = (barcode == null) ? "none" : barcode;
+        final TextView resView = (TextView) findViewById(R.id.textView);
+
+        Log.v(TAG, "Start decode");
+        final Bitmap bm = (image == null) ? null : ImageDecoder.ToBitmap(image, format, width, height);
+        Log.v(TAG, "End decode " + ((image == null) ? 0 : image.length));
+
+        this.runOnUiThread(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        resView.setText(latestBarcode);
+                        if (bm != null)
+                            mImageView.setImageBitmap(bm);
                     }
                 }
         );

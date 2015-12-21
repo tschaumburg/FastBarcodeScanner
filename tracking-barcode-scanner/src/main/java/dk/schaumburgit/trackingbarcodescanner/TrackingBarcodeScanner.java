@@ -7,6 +7,8 @@ package dk.schaumburgit.trackingbarcodescanner;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
+import android.graphics.Point;
+import android.media.Image;
 import android.util.Log;
 
 import com.google.zxing.BarcodeFormat;
@@ -18,8 +20,12 @@ import com.google.zxing.RGBLuminanceSource;
 import com.google.zxing.Result;
 import com.google.zxing.ResultPoint;
 import com.google.zxing.common.HybridBinarizer;
+import com.google.zxing.multi.qrcode.QRCodeMultiReader;
+import com.google.zxing.MultiFormatReader;
+import com.google.zxing.multi.GenericMultipleBarcodeReader;
 import com.google.zxing.qrcode.QRCodeReader;
 
+import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.Date;
 import java.util.EnumSet;
@@ -101,6 +107,7 @@ public class TrackingBarcodeScanner {
     private EnumSet<BarcodeFormat> mPossibleBarcodeFormats = EnumSet.of(BarcodeFormat.QR_CODE);
 
     private QRCodeReader mReader = new QRCodeReader();
+    private QRCodeMultiReader mMultiReader = new QRCodeMultiReader(); //new GenericMultipleBarcodeReader(new MultiFormatReader());
     private Hashtable<DecodeHintType, Object> mDecodeHints;
     public TrackingBarcodeScanner()
     {
@@ -109,52 +116,72 @@ public class TrackingBarcodeScanner {
         mDecodeHints.put(DecodeHintType.POSSIBLE_FORMATS, mPossibleBarcodeFormats);
     }
 
-    public Date a;
-    public Date b;
-    public Date c;
-    public Date d;
-    public Date f;
-    public Date g;
-    public String find(int imageFormat, int w, int h, byte[] bytes)
+    public BinaryBitmap DecodeImage(byte[] jpegData, int width, int height) {
+        try {
+            LuminanceSource lumSource = LuminanceSourceFactory.getLuminanceSource(ImageFormat.JPEG, jpegData, width, height);
+            return new BinaryBitmap(new HybridBinarizer(lumSource));
+        } catch (Exception e) {
+            Log.e(TAG, "failed reading captured image", e);
+            return null;
+        }
+    }
+
+    public BinaryBitmap DecodeImage(Image source)
     {
+        BinaryBitmap bitmap = null;
+
+        byte[] bytes = null;
+        int imageFormat = source.getFormat();
+        int w = source.getWidth();
+        int h = source.getHeight();
+        Image.Plane plane = source.getPlanes()[0];
+        ByteBuffer buffer = plane.getBuffer();
+        bytes = new byte[buffer.remaining()];
+        buffer.get(bytes);
+
         if (LuminanceSourceFactory.isFormatSupported(imageFormat) == false)
             throw new UnsupportedOperationException("ZXing cannot process images of type " + imageFormat);
 
-        a = new Date();
         // First we'll convert into a BinaryBitmap:
-        BinaryBitmap bitmap = null;
         try {
-            c = new Date();
             LuminanceSource lumSource = LuminanceSourceFactory.getLuminanceSource(imageFormat, bytes, w, h);
-            d = new Date();
             bitmap = new BinaryBitmap(new HybridBinarizer(lumSource));
-            f = new Date();
         } catch (Exception e) {
             Log.e(TAG, "failed reading captured image", e);
             return null;
         }
 
+        return bitmap;
+    }
+
+    public Barcode findSingle(BinaryBitmap bitmap)
+    {
+        if (bitmap == null)
+            return null;
+
         try {
             Result r = null;
+            int left = 0;
+            int top = 0;
 
             if (mUseTracking) {
                 // First try where we found the barcode before (much quicker that way):
                 if (mLatestMatch != null) {
                     Geometry.Rectangle crop = mLatestMatch.normalize(0, 0, bitmap.getWidth(), bitmap.getHeight());
                     //Log.d(TAG, "CROP: looking in (" + crop.x + ", " + crop.y + ", " + crop.width + ", " + crop.height + ")");
-                    int left = crop.x;
-                    int top = crop.y;
+                    left = crop.x;
+                    top = crop.y;
                     r = doFind(bitmap.crop(left, top, crop.width, crop.height));
                 }
             }
-            d = new Date();
 
             // If that didn't work, look at the entire picture:
             if (r==null)
             {
                 //Log.d(TAG, "CROP: Failed - looking in full bitmap");
+                left = 0;
+                top = 0;
                 r = doFind(bitmap);
-                f = new Date();
 
                 // if that worked (i.e. the barcode is in a new place),
                 // we'll update the mLatestMatch rectangle:
@@ -162,11 +189,9 @@ public class TrackingBarcodeScanner {
                     rememberMatch(r);
             } else
             {
-                f = new Date();
                 //Log.d(TAG, "CROP: Succeded - found barcode " + r.getText());
             }
 
-            g = new Date();
             if (r == null)
             {
                 if (mConsecutiveNoHits++ > mNoHitsBeforeTrackingLoss)
@@ -176,11 +201,48 @@ public class TrackingBarcodeScanner {
             }
 
             mConsecutiveNoHits = 0;
-            return r.getText();
+            return new Barcode(r.getText(), r.getBarcodeFormat(), _convert(r.getResultPoints(), left, top));
         } catch (Exception e) {
             Log.e(TAG, "FAILED DECODING", e);
             return null;
         }
+    }
+
+    private Point[] _convert(ResultPoint[] points, int addLeft, int addTop) {
+        Point[] res = new Point[points.length];
+        for (int n = 0; n< points.length; n++)
+            res[n] = new Point((int)points[n].getX() + addLeft, (int)points[n].getY() + addTop);
+        return res;
+    }
+
+    public Barcode[] findMultiple(BinaryBitmap bitmap)
+    {
+        if (bitmap == null)
+            return null;
+
+        try {
+            Result[] rs = mMultiReader.decodeMultiple(bitmap, mDecodeHints);
+            return _convert(rs);
+        } catch (com.google.zxing.NotFoundException e) {
+            // not an error - we just didn't find a barcode
+        } catch (Exception e) {
+            Log.e(TAG, "FAILED DECODING", e);
+        }
+
+        return null;
+    }
+
+    private Barcode[] _convert(Result[] rs)
+    {
+        if (rs == null)
+            return null;
+
+        Barcode[] res = new Barcode[rs.length];
+
+        for (int n=0; n< rs.length; n++)
+            res[n] = new Barcode(rs[n].getText(), rs[n].getBarcodeFormat(), _convert(rs[n].getResultPoints(), 0, 0));
+
+        return res;
     }
 
     private Result doFind(BinaryBitmap bitmap)

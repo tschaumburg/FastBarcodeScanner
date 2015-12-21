@@ -20,7 +20,8 @@ public interface IStillSequenceCamera {
 
     public interface OnImageAvailableListener
     {
-        void onImageAvailable(int format, byte[] data, int width, int height);
+        void onImageAvailable(Image image);
+        void onJpegImageAvailable(byte[] jpegData, int width, int height);
         void onError(Exception error);
     }
 
