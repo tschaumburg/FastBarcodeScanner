@@ -1,1 +1,1 @@
-include ':still-sequence-camera', ':tracking-barcode-scanner', ':fast-barcode-scanner', ':fast-barcode-scanner-demo'
+include ':tracking-barcode-scanner', ':still-sequence-camera', ':fast-barcode-scanner', ':fast-barcode-scanner-demo'

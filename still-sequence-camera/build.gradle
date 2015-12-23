@@ -1,9 +1,5 @@
-apply plugin: 'com.android.library'
-
 ext {
-    PUBLISH_GROUP_ID = 'dk.schaumburgit.fast-barcode-scanner'
-    PUBLISH_ARTIFACT_ID = 'still-sequence-camera'
-    PUBLISH_VERSION = '1.0.4'
+    DESCRIPTION = 'A library allowing apps to take fast sequences of still images without any UI preview'
 }
 
 android {
@@ -24,9 +20,10 @@ android {
     }
 }
 
+
 dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
     testCompile 'junit:junit:4.12'
 }
 
-apply from: 'https://raw.githubusercontent.com/blundell/release-android-library/master/android-release-aar.gradle'
+//apply from: 'https://raw.githubusercontent.com/blundell/release-android-library/master/android-release-aar.gradle'

@@ -55,7 +55,7 @@ public class FocusManager {
 
     /**
      * Sets up member variables related to the on-screen preview (if any).
-     * @param cameraId
+     * @param cameraId Id of the camera
      */
     public void setup(String cameraId) {
         try {
@@ -284,11 +284,12 @@ public class FocusManager {
 
     /**
      *
-     * @param cameraCaptureSession
+     * @param cameraCaptureSession Session
      * @param callbackHandler the handler on which the listener should be invoked, or
      * {@code null} to use the current thread's {@link android.os.Looper
      * looper}.
-     * @param listener
+     * @param listener Listener receiving callbacks
+     * @param lockFocus l
      */
     public void start(CameraCaptureSession cameraCaptureSession, boolean lockFocus, Handler callbackHandler, FocusListener listener)
     {

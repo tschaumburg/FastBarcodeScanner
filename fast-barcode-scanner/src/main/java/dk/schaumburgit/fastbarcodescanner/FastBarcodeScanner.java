@@ -81,17 +81,17 @@ public class FastBarcodeScanner {
 
     /**
      * Creates a headless FastBarcodeScanner (i.e. one without any UI)
-     * <p/>
+     *
      * FastBarcodeScanner instances created using this constructor will use
      * the new, efficient Camera2 API for controlling the camera.
-     * <p/>
+     *
      * This boosts performance by a factor 5x - but it only works on Android
      * Lollipop (API version 21) and later.
-     * <p/>
+     *
      * As an alternative, consider using the #FastBarcodeScanner constructor
      * which will create a FastBarcodeScanner working on older versions of
      * Android too - albeit much less efficiently.
-     * <p/>
+     *
      * The following properties control the behaviour of the barcode scanning
      * (see #TrackingBarcodeScanner for details): UseTracking, RelativeTrackingMargin,
      * NoHitsBeforeTrackingLoss.
@@ -107,13 +107,13 @@ public class FastBarcodeScanner {
 
     /**
      * Creates a FastBarcodeScanner using the given TextureView for preview.
-     * <p/>
+     *
      * FastBarcodeScanner instances created using this constructor will use
      * the new, much more efficient Camera2 API for controlling the camera.
-     * <p/>
+     *
      * This boosts performance by a factor 5x - but it only works on Android
      * Lollipop (API version 21) and later.
-     * <p/>
+     *
      * As an alternative, consider using the #FastBarcodeScanner constructor
      * which will create a FastBarcodeScanner working on older versions of
      * Android too - albeit much less efficiently.
@@ -160,7 +160,7 @@ public class FastBarcodeScanner {
     /**
      * Creates a FastBarcodeScanner using the deprecated Camera API supported
      * on Android versions prior to Lollipop (API level lower than 21).
-     * <p/>
+     *
      * The created FastBarcodeScanner will display preview output in the supplied
      * SurfaceView. This parameter *must* be non-null, and the referenced SurfaceView
      * *must* be displayed on-screen, with a minimum size of 1x1 pixels. This is a
@@ -205,13 +205,13 @@ public class FastBarcodeScanner {
      * be called using the supplied handler whenever
      * there's a *change* in the barcode seen (i.e. if 200 consecutive images contain
      * the same barcode, only the first will generate a callback).
-     * <p/>
+     *
      * "No barcode" is signalled with a null value via the callback.
-     * <p/>
+     *
      * Example: After StartScan is called, the first 20 images contain no barcode, the
      * next 200 have barcode A, the next 20 have nothing. This will generate the
      * following callbacks:
-     * <p/>
+     *
      * Frame#1:   onBarcodeAvailable(null)
      * Frame#21:  onBarcodeAvailable("A")
      * Frame#221: onBarcodeAvailable(null)
@@ -299,7 +299,7 @@ public class FastBarcodeScanner {
     /**
      * Stops the scanning process started by StartScan() or StartMultiScan() and frees any shared system resources
      * (e.g. the camera). StartScan() or StartMultiScan() can always be called to restart.
-     * <p/>
+     *
      * StopScan() and StartScan()/StartMultiScan() are thus well suited for use from the onPause() and onResume()
      * handlers of a calling application.
      */
@@ -334,7 +334,7 @@ public class FastBarcodeScanner {
 
     /**
      * Callback interface for being notified that a barcode has been detected.
-     * <p/>
+     *
      * <p>
      * The onBarcodeAvailable is called when a new barcode is detected - that is,
      * if the same barcode is detected in 20 consecutive frames, onBarcodeAvailable

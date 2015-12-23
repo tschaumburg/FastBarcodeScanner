@@ -129,9 +129,9 @@ public class StillSequenceCamera implements IStillSequenceCamera {
 
     /**
      * Selects a back-facing camera, opens it and starts focusing.
-     * <p/>
+     *
      * The #start() method can be called immediately when this method returns
-     * <p/>
+     *
      * If setup() returns successfully, the StillSequenceCamera enters the INITIALIZED state.
      *
      * @throws IllegalStateException         if the StillSequenceCamera is in any but the CLOSED state
@@ -180,9 +180,9 @@ public class StillSequenceCamera implements IStillSequenceCamera {
     /**
      * Starts the preview (displaying it in the #SurfaceView provided in the constructor),
      * and starts taking pictures as rapidly as possible.
-     * <p/>
+     *
      * This continues until #stop() is called.
-     * <p/>
+     *
      * If start() returns successfully, the StillSequenceCamera enters the CAPTURING state.
      *
      * @param listener Every time a picture is taken, this callback interface is called.
@@ -260,7 +260,7 @@ public class StillSequenceCamera implements IStillSequenceCamera {
 
     /**
      * Stops the preview, and stops the capture of still images.
-     * <p/>
+     *
      * If stop() returns successfully, the StillSequenceCamera enters the STOPPED state.
      *
      * @throws IllegalStateException if stop is called in any but the STARTED state
