@@ -236,16 +236,21 @@ public class FastBarcodeScanner {
 
                     @Override
                     public void onImageAvailable(Image image) {
-                        processSingleImage(image, includeImagesInCallback, listener, finalHandler);
+                        if (mPaused)
+                            image.close();
+                        else
+                            processSingleImage(image, includeImagesInCallback, listener, finalHandler);
                     }
 
                     @Override
                     public void onJpegImageAvailable(byte[] jpegData, int width, int height) {
-                        processSingleJpeg(jpegData, width, height, includeImagesInCallback, listener, finalHandler);
+                        if (!mPaused)
+                            processSingleJpeg(jpegData, width, height, includeImagesInCallback, listener, finalHandler);
                     }
 
                     @Override
                     public void onError(Exception error) {
+                        if (!mPaused)
                         FastBarcodeScanner.this.onError(error, listener, finalHandler);
                     }
 
@@ -278,22 +283,38 @@ public class FastBarcodeScanner {
 
                     @Override
                     public void onImageAvailable(Image source) {
-                        processMultiImage(source, includeImagesInCallback, listener, finalHandler);
+                        if (mPaused)
+                            source.close();
+                        else
+                            processMultiImage(source, includeImagesInCallback, listener, finalHandler);
                     }
 
                     @Override
                     public void onJpegImageAvailable(byte[] jpegData, int width, int height) {
-                        processMultiJpeg(jpegData, width, height, includeImagesInCallback, listener, finalHandler);
+                        if (!mPaused)
+                            processMultiJpeg(jpegData, width, height, includeImagesInCallback, listener, finalHandler);
                     }
 
                     @Override
                     public void onError(Exception error) {
-                        FastBarcodeScanner.this.onError(error, listener, finalHandler);
+                        if (!mPaused)
+                            FastBarcodeScanner.this.onError(error, listener, finalHandler);
                     }
 
                 },
                 mProcessingHandler
         );
+    }
+
+    private boolean mPaused = false;
+    public void Pause()
+    {
+        mPaused = true;
+    }
+
+    public void Resume()
+    {
+        mPaused = false;
     }
 
     /**

@@ -589,7 +589,8 @@ public class FocusManager {
                 }
             } catch (CameraAccessException e)
             {
-                throw new UnsupportedOperationException("Camera access required");
+                e.printStackTrace();
+                throw new UnsupportedOperationException("Camera access required 3");
             }
         }
 
@@ -610,7 +611,8 @@ public class FocusManager {
                 }
             } catch (CameraAccessException e)
             {
-                throw new UnsupportedOperationException("Camera access required");
+                e.printStackTrace();
+                throw new UnsupportedOperationException("Camera access required 4");
             }
         }
     }

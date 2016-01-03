@@ -69,6 +69,14 @@ public class MainActivity extends AppCompatActivity
             }
         });
 
+        Button pauseResumeButton = (Button)findViewById(R.id.pauseresume);
+        pauseResumeButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                pauseResume();
+            }
+        });
+
         //mSurfaceView = (SurfaceView)findViewById(R.id.preview);
         //mTextureView = (TextureView)findViewById(R.id.preview2);
         mImageView = (ImageView)findViewById(R.id.imageview);
@@ -96,6 +104,13 @@ public class MainActivity extends AppCompatActivity
         return super.onOptionsItemSelected(item);
     }
 
+    private void pauseResume() {
+        // like pause:
+        mScanner.StopScan();
+        // like resume:
+        mScanner.StartScan(false, this, null);
+    }
+
     FastBarcodeScanner mScanner = null;
     private void startScan() {
         requestCameraPermission();
@@ -109,19 +124,23 @@ public class MainActivity extends AppCompatActivity
 
         Button startButton = (Button)findViewById(R.id.start);
         Button stopButton = (Button)findViewById(R.id.button3);
+        Button pauseResumeButton = (Button)findViewById(R.id.pauseresume);
 
         startButton.setEnabled(false);
         mScanner.setLockFocus(true);
         //mScanner.setIncludeImagesInCallback(true);
         mScanner.StartMultiScan(true, this, null);
         stopButton.setEnabled(true);
+        pauseResumeButton.setEnabled(true);
     }
 
     private void stopScan() {
         Button startButton = (Button)findViewById(R.id.start);
         Button stopButton = (Button)findViewById(R.id.button3);
+        Button pauseResumeButton = (Button)findViewById(R.id.pauseresume);
 
         stopButton.setEnabled(false);
+        pauseResumeButton.setEnabled(false);
         mScanner.StopScan();
         startButton.setEnabled(true);
     }

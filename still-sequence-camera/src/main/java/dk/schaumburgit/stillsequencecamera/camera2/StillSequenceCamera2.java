@@ -2,13 +2,11 @@ package dk.schaumburgit.stillsequencecamera.camera2;
 
 import android.app.Activity;
 import android.content.Context;
-import android.graphics.ImageFormat;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
-import android.hardware.camera2.params.StreamConfigurationMap;
 import android.os.Handler;
 import android.os.HandlerThread;
 //import android.support.annotation.NonNull;
@@ -46,12 +44,13 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
     private CaptureManager mImageCapture;
 
     private final static int CLOSED = 0;
-    private final static int INITIALIZED = 1;
-    private final static int CAPTURING = 2;
-    private final static int CHANGING = 3;
-    private final static int FOCUSING = 4;
-    private final static int FAILED = 5;
-    private final static int ERROR = 6;
+    private final static int STOPPED = 1;
+    private final static int OPENING = 2;
+    private final static int STARTING = 3;
+    private final static int CAPTURING = 4;
+    private final static int STOPPING = 5;
+    private final static int FOCUSING = 6;
+    private final static int ERROR = 7;
     private int mState = CLOSED;
     private boolean mLockFocus = true;
 
@@ -160,18 +159,33 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
             throw new UnsupportedOperationException("Camera2 API is not supported");
         }
 
-        mState = INITIALIZED;
+        mState = STOPPED;
     }
 
     @Override
-    public void start(final OnImageAvailableListener listener, Handler callbackHandler)
+    public void start(final OnImageAvailableListener listener, final Handler callbackHandler)
     {
-        if (mState != INITIALIZED)
-            throw new IllegalStateException("StillSequenceCamera2.start() can only be called in the INITIALIZED state");
+        if (mState == OPENING)
+            return;
 
-        if (callbackHandler == null)
-            callbackHandler = new Handler();
-        final Handler _callbackHandler = callbackHandler;
+        if (mState == STARTING)
+            return;
+
+        if (mState == FOCUSING)
+            return;
+
+        try {
+            if (!mCameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
+                throw new RuntimeException("Time out waiting to lock camera opening.");
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException("Interrupted while trying to lock camera opening.", e);
+        }
+
+        mState = OPENING;
+        Log.v(TAG, "start(): state => OPENING");
+
+        final Handler _callbackHandler = callbackHandler == null ? new Handler() : callbackHandler;
 
         mFocusThread = new HandlerThread("CameraBackground");
         mFocusThread.start();
@@ -179,36 +193,35 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
 
         CameraManager manager = (CameraManager) mActivity.getSystemService(Context.CAMERA_SERVICE);
 
-        mState = CHANGING;
         try {
-            if (!mCameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
-                throw new RuntimeException("Time out waiting to lock camera opening.");
-            }
             // Open camera and hook into our camera state machine:
             manager.openCamera(
                     mCameraId,
                     new CameraDevice.StateCallback() {
                         @Override
                         public void onOpened(CameraDevice cameraDevice) {
-                            Log.d(TAG, "CameraDevice opened");
-                            // This method is called when the camera is opened.  We start camera preview here.
-                            mCameraOpenCloseLock.release();
                             mCameraDevice = cameraDevice;
                             try {
                                 // Here, we create a CameraCaptureSession for camera preview.
                                 // (this may take several hundred milliseconds)
+                                mState = STARTING;
+                                Log.v(TAG, "start(): state => STARTING");
                                 mCameraDevice.createCaptureSession(
                                         Arrays.asList(mFocusManager.getSurface(), mImageCapture.getSurface()),
                                         new CameraCaptureSession.StateCallback() {
                                             @Override
                                             public void onConfigured(CameraCaptureSession cameraCaptureSession) {
-                                                // The camera is already closed
+                                                // Special case: the camera is already closed
+                                                // - probably due to some system error or
+                                                // higher priority request:
                                                 if (null == mCameraDevice) {
+                                                    mCameraOpenCloseLock.release();
                                                     return;
                                                 }
-                                                Log.d(TAG, "CameraDevice configured");
                                                 mCaptureSession = cameraCaptureSession;
                                                 mState = FOCUSING;
+                                                mCameraOpenCloseLock.release();
+                                                Log.v(TAG, "start(): state => FOCUSING");
                                                 mFocusManager.start(
                                                         mCaptureSession,
                                                         mLockFocus,
@@ -216,8 +229,8 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                                                         new FocusManager.FocusListener() {
                                                             @Override
                                                             public void focusLocked() {
-                                                                //startCapturePhase();
                                                                 mState = CAPTURING;
+                                                                Log.v(TAG, "start(): state => CAPTURING");
                                                                 if (mLockFocus)
                                                                     mFocusManager.stop();
                                                                 mImageCapture.start(mCaptureSession, _callbackHandler, listener);
@@ -226,6 +239,7 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                                                             @Override
                                                             public void error(final Exception error) {
                                                                 mState = ERROR;
+                                                                Log.v(TAG, "start(): state => ERROR");
                                                                 mFocusManager.stop();
                                                                 if (listener != null)
                                                                     _callbackHandler.post(
@@ -245,7 +259,9 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                                             public void onConfigureFailed(
                                                     CameraCaptureSession cameraCaptureSession) {
                                                 mState = ERROR;
+                                                Log.v(TAG, "start(): state => ERROR");
                                                 Log.e(TAG, "Failed");
+                                                mCameraOpenCloseLock.release();
                                                 if (listener != null)
                                                     mFocusHandler.post(
                                                             new Runnable() {
@@ -260,55 +276,84 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                                         null
                                 );
                             } catch (CameraAccessException e) {
-                                mState = FAILED;
-                                throw new UnsupportedOperationException("Camera access required");
+                                mState = ERROR;
+                                mCameraOpenCloseLock.release();
+                                Log.v(TAG, "start(): state => FAILED");
+                                e.printStackTrace();
+                                throw new UnsupportedOperationException("Camera access required 2: " + e.getMessage());
                             }
                         }
 
                         @Override
                         public void onDisconnected(CameraDevice cameraDevice) {
-                            mCameraOpenCloseLock.release();
+                            //mCameraOpenCloseLock.release();
                             cameraDevice.close();
                             mCameraDevice = null;
+                            mState = ERROR;
+                            mCameraOpenCloseLock.release();
+                            Log.v(TAG, "start(): state => ERROR");
                         }
 
                         @Override
                         public void onError(CameraDevice cameraDevice, int error) {
                             Log.e(TAG, "CameraDevice.StateCallback.onError(" + error + ")");
-                            mCameraOpenCloseLock.release();
+                            //mCameraOpenCloseLock.release();
                             cameraDevice.close();
                             mCameraDevice = null;
-                            if (null != mActivity) {
-                                mActivity.finish();
-                            }
+                            mState = ERROR;
+                            mCameraOpenCloseLock.release();
+                            Log.v(TAG, "start(): state => ERROR");
                         }
 
                     },
                     mFocusHandler
             );
         } catch (CameraAccessException e) {
+            mState = ERROR;
+            Log.v(TAG, "start(): state => ERROR½");
+            mCameraOpenCloseLock.release();
             e.printStackTrace();
-            throw new UnsupportedOperationException("CAMERA permission required");
+            throw new UnsupportedOperationException("CAMERA access required");
         } catch (SecurityException e) {
+            mState = ERROR;
+            Log.v(TAG, "start(): state => ERROR");
+            mCameraOpenCloseLock.release();
             e.printStackTrace();
             throw new UnsupportedOperationException("CAMERA permission required");
-        } catch (InterruptedException e) {
-            throw new RuntimeException("Interrupted while trying to lock camera opening.", e);
         } catch (Exception e) {
+            mState = ERROR;
+            Log.v(TAG, "start(): state => ERROR");
+            mCameraOpenCloseLock.release();
             e.printStackTrace();
+            throw e;
         }
     }
 
     @Override
     public void stop()
     {
+        if (mState == STOPPED)
+            return;
+
+        if (mState == STOPPING)
+            return;
+
         if (mState == CLOSED)
             return;
 
-        if (mState != CAPTURING)
-            throw new IllegalStateException("StillSequenceCamera2.stop() can only be called in the STARTED state");
+        try {
+            if (!mCameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
+                throw new RuntimeException("Time out waiting to lock camera opening.");
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException("Interrupted while trying to lock camera opening.", e);
+        }
 
-        mState = CHANGING;
+        if (mState != CAPTURING && mState != FOCUSING)
+            throw new IllegalStateException("stop(): StillSequenceCamera2.stop() can only be called in the STARTED state (" + mState + ")");
+
+        mState = STOPPING;
+        Log.v(TAG, "stop(): state => STOPPING");
 
         new Thread(new Runnable() {
             public void run() {
@@ -316,7 +361,6 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                 try {
                     mFocusManager.stop();
                     mImageCapture.stop();
-                    mCameraOpenCloseLock.acquire();
                     if (mCaptureSession != null) {
                         mCaptureSession.close();
                         mCaptureSession = null;
@@ -325,10 +369,8 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                         mCameraDevice.close();
                         mCameraDevice = null;
                     }
-                } catch (InterruptedException e) {
-                    throw new RuntimeException("Interrupted while trying to lock camera for closing.", e);
                 } finally {
-                    mCameraOpenCloseLock.release();
+                    //mCameraOpenCloseLock.release();
                 }
 
                 if (mFocusThread != null) {
@@ -338,10 +380,13 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                         mFocusThread = null;
                         mFocusHandler = null;
                     } catch (Exception e) {
+                        Log.v(TAG, "stop(): state => A");
                         e.printStackTrace();
                     }
                 }
-                mState = INITIALIZED;
+                mState = STOPPED;
+                Log.v(TAG, "stop(): state => STOPPED");
+                mCameraOpenCloseLock.release();
             }
         }).start();
     }
@@ -354,8 +399,8 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
         if (mState == CAPTURING)
             stop();
 
-        if (mState != INITIALIZED)
-            throw new IllegalStateException("StillSequenceCamera2.close() can only be called in the INITIALIZED state");
+        if (mState != STOPPED)
+            throw new IllegalStateException("StillSequenceCamera2.close() can only be called in the STOPPED state");
 
         mFocusManager.close();
         mImageCapture.close();

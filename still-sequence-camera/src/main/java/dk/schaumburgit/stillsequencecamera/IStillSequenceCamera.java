@@ -1,11 +1,7 @@
 package dk.schaumburgit.stillsequencecamera;
 
-import android.app.Activity;
 import android.media.Image;
 import android.os.Handler;
-import android.view.TextureView;
-
-import java.io.IOException;
 import java.util.Map;
 
 /**

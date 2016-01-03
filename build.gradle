@@ -1,6 +1,12 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+// To release, run
+//    gradlew clean build bintrayUpload -PbintrayUser=tschaumburg -PbintrayKey=xxxxxxxxxxxxxxxxxx -PdryRun=false
+// where xxxxxxxxxxx is retrieved from
+//    https://bintray.com/profile/edit
+// under "API Key"
 ext {
-    VERSION_NAME = '1.0.5'
+    VERSION_NAME = '1.0.7'
 }
 
 buildscript {

@@ -22,9 +22,10 @@ android {
 
 dependencies {
     compile fileTree(include: ['*.jar'], dir: 'libs')
+    compile 'com.google.zxing:core:3.2.1'
     testCompile 'junit:junit:4.12'
-    //compile 'dk.schaumburgit.fast-barcode-scanner:still-sequence-camera:1.0.4'
-    //compile 'dk.schaumburgit.fast-barcode-scanner:tracking-barcode-scanner:1.0.4'
+    //compile 'dk.schaumburgit.fast-barcode-scanner:still-sequence-camera:1.0.7'
+    //Scompile 'dk.schaumburgit.fast-barcode-scanner:tracking-barcode-scanner:1.0.7'
     compile project(':still-sequence-camera')
     compile project(':tracking-barcode-scanner')
 }

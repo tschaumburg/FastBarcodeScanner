@@ -23,6 +23,7 @@ android {
 
 dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
+    //compile 'org.jdeferred:jdeferred-core:1.2.4'
     testCompile 'junit:junit:4.12'
 }
 
