@@ -269,7 +269,11 @@ public class FastBarcodeScanner {
      * @param callbackHandler Identifies the thread that the callbacks will be made on.
      *                        Null means "use the thread that called StartScan()".
      */
-    public void StartMultiScan(final boolean includeImagesInCallback, final MultipleBarcodesDetectedListener listener, Handler callbackHandler) {
+    public void StartMultiScan(final MultipleBarcodesDetectedListener listener, Handler callbackHandler) {
+        StartMultiScan(false,1, null, listener, callbackHandler);
+    }
+
+    public void StartMultiScan(final boolean includeImagesInCallback, final int minNoOfBarcodes, final String barcodeBeginsWith, final MultipleBarcodesDetectedListener listener, Handler callbackHandler) {
         if (callbackHandler == null)
             callbackHandler = new Handler();
         final Handler finalHandler = callbackHandler;
@@ -286,13 +290,13 @@ public class FastBarcodeScanner {
                         if (mPaused)
                             source.close();
                         else
-                            processMultiImage(source, includeImagesInCallback, listener, finalHandler);
+                            processMultiImage(source, minNoOfBarcodes, barcodeBeginsWith, includeImagesInCallback, listener, finalHandler);
                     }
 
                     @Override
                     public void onJpegImageAvailable(byte[] jpegData, int width, int height) {
                         if (!mPaused)
-                            processMultiJpeg(jpegData, width, height, includeImagesInCallback, listener, finalHandler);
+                            processMultiJpeg(jpegData, width, height, minNoOfBarcodes, barcodeBeginsWith, includeImagesInCallback, listener, finalHandler);
                     }
 
                     @Override
@@ -431,7 +435,7 @@ public class FastBarcodeScanner {
         }
     }
 
-    private void processMultiImage(Image source, boolean includeImagesInCallback, MultipleBarcodesDetectedListener listener, Handler callbackHandler) {
+    private void processMultiImage(Image source, int minNoOfBarcodes, String barcodesBeginWith, boolean includeImagesInCallback, MultipleBarcodesDetectedListener listener, Handler callbackHandler) {
         // Decode the image:
         try {
             if (listener == null) {
@@ -442,9 +446,12 @@ public class FastBarcodeScanner {
             }
 
             BinaryBitmap bitmap = mBarcodeFinder.DecodeImage(source);
-            Barcode[] bcs = mBarcodeFinder.findMultiple(bitmap);
+            Barcode[] bcs = mBarcodeFinder.findMultiple(bitmap, barcodesBeginWith);
             if (bcs == null) {
                 source.close();
+                onMultipleBarcodesFound(null, null, listener, callbackHandler);
+            } else if (bcs.length < minNoOfBarcodes) {
+                    source.close();
                 onMultipleBarcodesFound(null, null, listener, callbackHandler);
             } else {
                 onMultipleBarcodesFound(bcs, includeImagesInCallback ? source : null, listener, callbackHandler);
@@ -459,7 +466,7 @@ public class FastBarcodeScanner {
         }
     }
 
-    private void processMultiJpeg(byte[] jpegData, int width, int height, boolean includeImagesInCallback, MultipleBarcodesDetectedListener listener, Handler callbackHandler)
+    private void processMultiJpeg(byte[] jpegData, int width, int height, int minNoOfBarcodes, String barcodeBeginsWith, boolean includeImagesInCallback, MultipleBarcodesDetectedListener listener, Handler callbackHandler)
     {
         if (listener == null) {
             return;
@@ -467,8 +474,10 @@ public class FastBarcodeScanner {
 
         try {
             BinaryBitmap bitmap = mBarcodeFinder.DecodeImage(jpegData, width, height);
-            Barcode[] bcs = mBarcodeFinder.findMultiple(bitmap);
+            Barcode[] bcs = mBarcodeFinder.findMultiple(bitmap, barcodeBeginsWith);
             if (bcs == null) {
+                onMultipleBarcodesFound(null, null, listener, callbackHandler);
+            } else if (bcs.length < minNoOfBarcodes) {
                 onMultipleBarcodesFound(null, null, listener, callbackHandler);
             } else {
                 onMultipleBarcodesFound(bcs, null/*source*/, listener, callbackHandler);

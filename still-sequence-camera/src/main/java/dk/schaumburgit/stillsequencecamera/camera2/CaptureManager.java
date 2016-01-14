@@ -38,6 +38,7 @@ public class CaptureManager {
     private static final String TAG = "StillSequenceCamera2";
 
     private final Activity mActivity;
+    private final PreviewManager mPreview;
     private final int mMinPixels;
 
     // Set by setup(), freed by close():
@@ -48,12 +49,13 @@ public class CaptureManager {
     private CameraCaptureSession mCameraCaptureSession;
     private CaptureRequest mStillCaptureRequest = null;
 
-    public CaptureManager(Activity activity, int minPixels)
+    public CaptureManager(Activity activity, PreviewManager preview, int minPixels)
     {
         if (activity==null)
             throw new NullPointerException("CaptureManager requires an Activity");
 
         this.mActivity = activity;
+        this.mPreview = preview;
 
         if (minPixels < 1024*768)
             minPixels = 1024*768;
@@ -306,6 +308,8 @@ public class CaptureManager {
             final CaptureRequest.Builder captureBuilder =
                     cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
             captureBuilder.addTarget(mImageReader.getSurface());
+            if (mPreview != null)
+                captureBuilder.addTarget(mPreview.getSurface());
 
             // Use the same AE and AF modes as the preview.
             captureBuilder.set(CaptureRequest.CONTROL_AF_MODE,

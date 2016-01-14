@@ -169,7 +169,7 @@ public class FocusManager {
         int w = width; // aspectRatio.getWidth();
         int h = height; //aspectRatio.getHeight();
         for (Size option : choices) {
-            if (option.getHeight() == option.getWidth() * h / w &&
+            if (/*option.getHeight() == option.getWidth() * h / w &&*/
                     option.getWidth() >= width && option.getHeight() >= height) {
                 bigEnough.add(option);
             }
@@ -179,7 +179,7 @@ public class FocusManager {
         if (bigEnough.size() > 0) {
             return Collections.min(bigEnough, new CompareSizesByArea());
         } else {
-            Log.e(TAG, "Couldn't find any suitable preview size");
+            Log.e(TAG, "Couldn't find any suitable preview size for " + width + "x" + height);
             return choices[0];
         }
     }

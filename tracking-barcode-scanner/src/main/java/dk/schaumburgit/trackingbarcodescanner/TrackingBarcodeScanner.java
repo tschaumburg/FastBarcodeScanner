@@ -27,6 +27,7 @@ import com.google.zxing.qrcode.QRCodeReader;
 
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.Hashtable;
@@ -215,14 +216,14 @@ public class TrackingBarcodeScanner {
         return res;
     }
 
-    public Barcode[] findMultiple(BinaryBitmap bitmap)
+    public Barcode[] findMultiple(BinaryBitmap bitmap, String barcodesBeginWith)
     {
         if (bitmap == null)
             return null;
 
         try {
             Result[] rs = mMultiReader.decodeMultiple(bitmap, mDecodeHints);
-            return _convert(rs);
+            return _convert(rs, barcodesBeginWith);
         } catch (com.google.zxing.NotFoundException e) {
             // not an error - we just didn't find a barcode
         } catch (Exception e) {
@@ -232,17 +233,22 @@ public class TrackingBarcodeScanner {
         return null;
     }
 
-    private Barcode[] _convert(Result[] rs)
+    private Barcode[] _convert(Result[] rs, String beginsWith)
     {
         if (rs == null)
             return null;
 
-        Barcode[] res = new Barcode[rs.length];
+        //Barcode[] res = new Barcode[rs.length];
+        ArrayList<Barcode> res2 = new ArrayList<Barcode>(rs.length);
 
-        for (int n=0; n< rs.length; n++)
-            res[n] = new Barcode(rs[n].getText(), rs[n].getBarcodeFormat(), _convert(rs[n].getResultPoints(), 0, 0));
+        for (int n=0; n< rs.length; n++) {
+            //res[n] = new Barcode(rs[n].getText(), rs[n].getBarcodeFormat(), _convert(rs[n].getResultPoints(), 0, 0));
+            if (beginsWith == null || rs[n].getText().startsWith(beginsWith))
+                res2.add(new Barcode(rs[n].getText(), rs[n].getBarcodeFormat(), _convert(rs[n].getResultPoints(), 0, 0)));
+        }
 
-        return res;
+        //return res;
+        return res2.toArray(new Barcode[res2.size()]);
     }
 
     private Result doFind(BinaryBitmap bitmap)

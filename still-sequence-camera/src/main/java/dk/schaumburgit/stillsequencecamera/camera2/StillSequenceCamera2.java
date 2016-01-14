@@ -11,9 +11,11 @@ import android.os.Handler;
 import android.os.HandlerThread;
 //import android.support.annotation.NonNull;
 import android.util.Log;
+import android.view.Surface;
 import android.view.TextureView;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -42,6 +44,7 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
 
     private FocusManager mFocusManager;
     private CaptureManager mImageCapture;
+    private PreviewManager mPreview = null;
 
     private final static int CLOSED = 0;
     private final static int STOPPED = 1;
@@ -95,7 +98,9 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
         this.mActivity = activity;
 
         mFocusManager = new FocusManager(activity, textureView);
-        mImageCapture = new CaptureManager(activity, minPixels);
+        if (textureView !=null)
+            mPreview = new PreviewManager(activity, textureView);
+        mImageCapture = new CaptureManager(activity, mPreview, minPixels);
 
         mState = CLOSED;
 
@@ -152,6 +157,8 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
         try {
             mImageCapture.setup(mCameraId, imageFormat);
             mFocusManager.setup(mCameraId);
+            if (mPreview!=null)
+                mPreview.setup(mCameraId);
         } catch (NullPointerException e) {
             // Currently an NPE is thrown when the Camera2API is used but not supported on the
             // device this code runs.
@@ -206,8 +213,14 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                                 // (this may take several hundred milliseconds)
                                 mState = STARTING;
                                 Log.v(TAG, "start(): state => STARTING");
+                                List<Surface> surfaces;
+                                if (mPreview != null)
+                                    surfaces = Arrays.asList(mFocusManager.getSurface(), mImageCapture.getSurface(), mPreview.getSurface());
+                                else
+                                    surfaces = Arrays.asList(mFocusManager.getSurface(), mImageCapture.getSurface());
                                 mCameraDevice.createCaptureSession(
-                                        Arrays.asList(mFocusManager.getSurface(), mImageCapture.getSurface()),
+                                        //Arrays.asList(mFocusManager.getSurface(), mImageCapture.getSurface()),
+                                        surfaces,
                                         new CameraCaptureSession.StateCallback() {
                                             @Override
                                             public void onConfigured(CameraCaptureSession cameraCaptureSession) {

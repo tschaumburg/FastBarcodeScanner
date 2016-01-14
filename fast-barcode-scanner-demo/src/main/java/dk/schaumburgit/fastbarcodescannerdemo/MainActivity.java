@@ -78,7 +78,7 @@ public class MainActivity extends AppCompatActivity
         });
 
         //mSurfaceView = (SurfaceView)findViewById(R.id.preview);
-        //mTextureView = (TextureView)findViewById(R.id.preview2);
+        mTextureView = (TextureView)findViewById(R.id.preview2);
         mImageView = (ImageView)findViewById(R.id.imageview);
     }
 
@@ -116,8 +116,8 @@ public class MainActivity extends AppCompatActivity
         requestCameraPermission();
 
         if (mScanner == null) {
-            mScanner = new FastBarcodeScanner(this, (TextureView)null, 4*1024*768);
-            //mScanner = new FastBarcodeScanner(this, mTextureView, 1024*768);
+            //mScanner = new FastBarcodeScanner(this, (TextureView)null, 4*1024*768);
+            mScanner = new FastBarcodeScanner(this, mTextureView, 4*1024*768);
             //mScanner = new FastBarcodeScanner(this, mSurfaceView);
             //mScanner.setScanningStateListener(this);
         }
@@ -129,7 +129,7 @@ public class MainActivity extends AppCompatActivity
         startButton.setEnabled(false);
         mScanner.setLockFocus(true);
         //mScanner.setIncludeImagesInCallback(true);
-        mScanner.StartMultiScan(true, this, null);
+        mScanner.StartMultiScan(true, 4, "pfx:scorecard:", this, null);
         stopButton.setEnabled(true);
         pauseResumeButton.setEnabled(true);
     }
@@ -174,7 +174,7 @@ public class MainActivity extends AppCompatActivity
         }
 
         final String latestBarcode = (barcodesText == null) ? "none" : barcodesText;
-        final TextView resView = (TextView) findViewById(R.id.textView);
+        final TextView resView = (TextView) findViewById(R.id.textView2);
 
         Log.v(TAG, "Start decode");
         final Bitmap bm = (image == null) ? null : ImageDecoder.ToBitmap(image, format, width, height);
