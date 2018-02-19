@@ -17,8 +17,6 @@ package dk.schaumburgit.fastbarcodescanner;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.Point;
 import android.media.Image;
@@ -30,20 +28,23 @@ import android.view.TextureView;
 
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.BinaryBitmap;
-import com.google.zxing.DecodeHintType;
 
-import java.nio.ByteBuffer;
 import java.security.InvalidParameterException;
-import java.sql.Timestamp;
-import java.util.Date;
 import java.util.EnumSet;
 import java.util.Map;
 
+import dk.schaumburgit.fastbarcodescanner.callbackmanagers.MultiCallbackManager;
+import dk.schaumburgit.fastbarcodescanner.callbackmanagers.SingleCallbackManager;
+import dk.schaumburgit.fastbarcodescanner.imageutils.ImageDecoder;
 import dk.schaumburgit.stillsequencecamera.IStillSequenceCamera;
 import dk.schaumburgit.stillsequencecamera.camera.StillSequenceCamera;
+import dk.schaumburgit.stillsequencecamera.camera.StillSequenceCameraOptions;
 import dk.schaumburgit.stillsequencecamera.camera2.StillSequenceCamera2;
+import dk.schaumburgit.stillsequencecamera.camera2.StillSequenceCamera2Options;
 import dk.schaumburgit.trackingbarcodescanner.Barcode;
+import dk.schaumburgit.trackingbarcodescanner.ScanOptions;
 import dk.schaumburgit.trackingbarcodescanner.TrackingBarcodeScanner;
+import dk.schaumburgit.trackingbarcodescanner.TrackingOptions;
 
 /**
  * The FastBarcodeScanner captures images from your front-facing camera at the fastest
@@ -79,58 +80,26 @@ public class FastBarcodeScanner {
     private final IStillSequenceCamera mImageSource;
     private final TrackingBarcodeScanner mBarcodeFinder;
 
-    /**
-     * Creates a headless FastBarcodeScanner (i.e. one without any UI)
-     *
-     * FastBarcodeScanner instances created using this constructor will use
-     * the new, efficient Camera2 API for controlling the camera.
-     *
-     * This boosts performance by a factor 5x - but it only works on Android
-     * Lollipop (API version 21) and later.
-     *
-     * As an alternative, consider using the #FastBarcodeScanner constructor
-     * which will create a FastBarcodeScanner working on older versions of
-     * Android too - albeit much less efficiently.
-     *
-     * The following properties control the behaviour of the barcode scanning
-     * (see #TrackingBarcodeScanner for details): UseTracking, RelativeTrackingMargin,
-     * NoHitsBeforeTrackingLoss.
-     *
-     * @param activity Non null
-     * @param resolution The requested minimum resolution of the photos
-     *                   taken during scanning.
-     */
-    @TargetApi(21)
-    public FastBarcodeScanner(Activity activity, int resolution) {
-        this(activity, (TextureView) null, resolution);
-    }
+    private final FilterOptions mFilterOptions;
+    private final ScanOptions mScanOptions;
 
-    /**
-     * Creates a FastBarcodeScanner using the given TextureView for preview.
-     *
-     * FastBarcodeScanner instances created using this constructor will use
-     * the new, much more efficient Camera2 API for controlling the camera.
-     *
-     * This boosts performance by a factor 5x - but it only works on Android
-     * Lollipop (API version 21) and later.
-     *
-     * As an alternative, consider using the #FastBarcodeScanner constructor
-     * which will create a FastBarcodeScanner working on older versions of
-     * Android too - albeit much less efficiently.
-     *
-     * @param activity    Non null
-     * @param textureView Nullable
-     * @param resolution The requested minimum resolution of the photos
-     *                   taken during scanning.
-     */
     @TargetApi(21)
-    public FastBarcodeScanner(Activity activity, TextureView textureView, int resolution) {
+    public FastBarcodeScanner(
+            Activity activity,
+            StillSequenceCamera2Options cameraOptions,
+            ScanOptions scanOptions,
+            TrackingOptions trackingOptions,
+            FilterOptions filterOptions
+    ) {
         if (activity == null)
             throw new InvalidParameterException("activity cannot be null");
 
+        this.mFilterOptions = filterOptions;
+        this.mScanOptions = scanOptions;
+
         this.mActivity = activity;
-        this.mBarcodeFinder = new TrackingBarcodeScanner();
-        this.mImageSource = new StillSequenceCamera2(activity, textureView, resolution);
+        this.mBarcodeFinder = new TrackingBarcodeScanner(scanOptions, trackingOptions);
+        this.mImageSource = new StillSequenceCamera2(activity, cameraOptions);
 
         Map<Integer, Double> cameraFormatCosts = mImageSource.getSupportedImageFormats();
         Map<Integer, Double> zxingFormatCosts = mBarcodeFinder.getPreferredImageFormats();
@@ -157,36 +126,58 @@ public class FastBarcodeScanner {
         return result;
     }
 
+    public FastBarcodeScanner(
+            Activity activity,
+            TextureView textureView,
+            int resolution
+    ) {
+        this(
+                activity,
+                new StillSequenceCamera2Options(textureView, resolution, StillSequenceCamera2Options.Facing.Back),
+                new ScanOptions(),
+                new TrackingOptions(),
+                new FilterOptions()
+        );
+    }
+
     /**
      * Creates a FastBarcodeScanner using the deprecated Camera API supported
      * on Android versions prior to Lollipop (API level lower than 21).
-     *
+     * <p>
      * The created FastBarcodeScanner will display preview output in the supplied
      * SurfaceView. This parameter *must* be non-null, and the referenced SurfaceView
      * *must* be displayed on-screen, with a minimum size of 1x1 pixels. This is a
      * non-negotiable requirement from the camera API (upgrade to API level 21 for
      * true headless operation).
      *
-     * @param activity    Non-null
-     * @param surfaceView Non-null
-     * @param resolution The requested minimum resolution of the photos
-     *                   taken during scanning.
-     *
+     * @param activity Non-null
      * @deprecated This constructor uses the deprecated Camera API. We recommend using
      * one of the other FastBarcodeScanner constructors (using the new
      * {@link android.hardware.camera2} API) for new applications.
      */
     @Deprecated
-    public FastBarcodeScanner(Activity activity, SurfaceView surfaceView, int resolution) {
+    public FastBarcodeScanner(
+            Activity activity,
+            StillSequenceCameraOptions cameraOptions,
+            ScanOptions scanOptions,
+            TrackingOptions trackingOptions,
+            FilterOptions filterOptions
+    ) {
         if (activity == null)
             throw new InvalidParameterException("activity cannot be null");
 
-        if (surfaceView == null)
-            throw new InvalidParameterException("surfaceView cannot be null");
+        this.mFilterOptions = filterOptions;
+        this.mScanOptions = scanOptions;
+
+        if (cameraOptions == null)
+            throw new InvalidParameterException("cameraOptions cannot be null");
+
+        if (cameraOptions.preview == null)
+            throw new InvalidParameterException("cameraOptions.preview cannot be null");
 
         this.mActivity = activity;
-        this.mBarcodeFinder = new TrackingBarcodeScanner();
-        this.mImageSource = new StillSequenceCamera(activity, surfaceView, resolution);
+        this.mBarcodeFinder = new TrackingBarcodeScanner(scanOptions, trackingOptions);
+        this.mImageSource = new StillSequenceCamera(activity, cameraOptions);
 
         Map<Integer, Double> cameraFormatCosts = mImageSource.getSupportedImageFormats();
         Map<Integer, Double> zxingFormatCosts = mBarcodeFinder.getPreferredImageFormats();
@@ -196,33 +187,65 @@ public class FastBarcodeScanner {
     }
 
     /**
-     * Starts recording anything the back-camera sees, looking for any single barcode
+     * Creates a FastBarcodeScanner using the deprecated Camera API supported
+     * on Android versions prior to Lollipop (API level lower than 21).
+     * <p>
+     * The created FastBarcodeScanner will display preview output in the supplied
+     * SurfaceView. This parameter *must* be non-null, and the referenced SurfaceView
+     * *must* be displayed on-screen, with a minimum size of 1x1 pixels. This is a
+     * non-negotiable requirement from the camera API (upgrade to API level 21 for
+     * true headless operation).
+     *
+     * @param activity    Non-null
+     * @param surfaceView Non-null
+     * @param resolution  The requested minimum resolution of the photos
+     *                    taken during scanning.
+     * @deprecated This constructor uses the deprecated Camera API. We recommend using
+     * one of the other FastBarcodeScanner constructors (using the new
+     * {@link android.hardware.camera2} API) for new applications.
+     */
+    @Deprecated
+    public FastBarcodeScanner(
+            Activity activity,
+            SurfaceView surfaceView,
+            int resolution
+    ) {
+        this(activity, new StillSequenceCameraOptions(surfaceView, resolution), new ScanOptions(), new TrackingOptions(), new FilterOptions());
+    }
+
+    /**
+     * Starts processing anything the back-camera sees, looking for any single barcode
      * in the captured photos. If several barcodes are in view, only the first one found
      * will be detected (consider using the less efficient #startMultiScan if you want
      * all barcodes)
-     *
+     * <p>
      * The scanning is performed on a background thread. The supplied listener will
      * be called using the supplied handler whenever
      * there's a *change* in the barcode seen (i.e. if 200 consecutive images contain
      * the same barcode, only the first will generate a callback).
-     *
+     * <p>
      * "No barcode" is signalled with a null value via the callback.
-     *
+     * <p>
      * Example: After StartScan is called, the first 20 images contain no barcode, the
      * next 200 have barcode A, the next 20 have nothing. This will generate the
      * following callbacks:
-     *
+     * <p>
      * Frame#1:   onBarcodeAvailable(null)
      * Frame#21:  onBarcodeAvailable("A")
      * Frame#221: onBarcodeAvailable(null)
      *
      * @param includeImagesInCallback Whether the callbacks to the listener will contain the
      *                                images that the callback was based on.
-     * @param listener        A reference to the listener receiving the above mentioned callbacks
-     * @param callbackHandler Identifies the thread that the callbacks will be made on.
-     *                        Null means "use the thread that called StartScan()".
+     * @param listener                A reference to the listener receiving the above mentioned
+     *                                callbacks
+     * @param callbackHandler         Identifies the thread that the callbacks will be made on.
+     *                                Null means "use the thread that called StartScan()".
      */
-    public void StartScan(final boolean includeImagesInCallback, final BarcodeDetectedListener listener, Handler callbackHandler) {
+    public void StartScan(
+            final boolean includeImagesInCallback,
+            final BarcodeDetectedListener listener,
+            Handler callbackHandler
+    ) {
         if (callbackHandler == null)
             callbackHandler = new Handler();
         final Handler finalHandler = callbackHandler;
@@ -231,6 +254,7 @@ public class FastBarcodeScanner {
         mProcessingThread.start();
         mProcessingHandler = new Handler(mProcessingThread.getLooper());
 
+        final SingleCallbackManager callbackManager = new SingleCallbackManager(this.mScanOptions, this.mFilterOptions, new CallBackOptions(includeImagesInCallback), listener, finalHandler);
         mImageSource.start(
                 new IStillSequenceCamera.OnImageAvailableListener() {
 
@@ -239,19 +263,19 @@ public class FastBarcodeScanner {
                         if (mPaused)
                             image.close();
                         else
-                            processSingleImage(image, includeImagesInCallback, listener, finalHandler);
+                            processSingleImage(image, callbackManager);
                     }
 
                     @Override
                     public void onJpegImageAvailable(byte[] jpegData, int width, int height) {
                         if (!mPaused)
-                            processSingleJpeg(jpegData, width, height, includeImagesInCallback, listener, finalHandler);
+                            processSingleJpeg(jpegData, width, height, callbackManager);
                     }
 
                     @Override
                     public void onError(Exception error) {
                         if (!mPaused)
-                        FastBarcodeScanner.this.onError(error, listener, finalHandler);
+                            callbackManager.onError(error);
                     }
 
                 },
@@ -263,17 +287,31 @@ public class FastBarcodeScanner {
      * Similar to #StartScan, except that it scans all barcodes in view, not just the first
      * one found.
      *
-     * @param includeImagesInCallback Whether the callbacks to the listener will contain the
-     *                                images that the callback was based on.
      * @param listener        A reference to the listener receiving the above mentioned callbacks
      * @param callbackHandler Identifies the thread that the callbacks will be made on.
      *                        Null means "use the thread that called StartScan()".
      */
     public void StartMultiScan(final MultipleBarcodesDetectedListener listener, Handler callbackHandler) {
-        StartMultiScan(false,1, null, listener, callbackHandler);
+        StartMultiScan(false, 1, listener, callbackHandler);
     }
 
-    public void StartMultiScan(final boolean includeImagesInCallback, final int minNoOfBarcodes, final String barcodeBeginsWith, final MultipleBarcodesDetectedListener listener, Handler callbackHandler) {
+    /**
+     * Similar to #StartScan, except that it scans all barcodes in view, not just the first
+     * one found.
+     *
+     * @param includeImagesInCallback Whether the callbacks to the listener will contain the
+     *                                images that the callback was based on.
+     * @param minNoOfBarcodes
+     * @param listener                A reference to the listener receiving the above mentioned callbacks
+     * @param callbackHandler         Identifies the thread that the callbacks will be made on.
+     *                                Null means "use the thread that called StartScan()".
+     */
+    public void StartMultiScan(
+            final boolean includeImagesInCallback,
+            final int minNoOfBarcodes,
+            final MultipleBarcodesDetectedListener listener,
+            Handler callbackHandler
+    ) {
         if (callbackHandler == null)
             callbackHandler = new Handler();
         final Handler finalHandler = callbackHandler;
@@ -282,6 +320,7 @@ public class FastBarcodeScanner {
         mProcessingThread.start();
         mProcessingHandler = new Handler(mProcessingThread.getLooper());
 
+        final MultiCallbackManager callbackManager = new MultiCallbackManager(this.mScanOptions, this.mFilterOptions, new CallBackOptions(includeImagesInCallback), listener, finalHandler);
         mImageSource.start(
                 new IStillSequenceCamera.OnImageAvailableListener() {
 
@@ -290,19 +329,19 @@ public class FastBarcodeScanner {
                         if (mPaused)
                             source.close();
                         else
-                            processMultiImage(source, minNoOfBarcodes, barcodeBeginsWith, includeImagesInCallback, listener, finalHandler);
+                            processMultiImage(source, minNoOfBarcodes, callbackManager);
                     }
 
                     @Override
                     public void onJpegImageAvailable(byte[] jpegData, int width, int height) {
                         if (!mPaused)
-                            processMultiJpeg(jpegData, width, height, minNoOfBarcodes, barcodeBeginsWith, includeImagesInCallback, listener, finalHandler);
+                            processMultiJpeg(jpegData, width, height, minNoOfBarcodes, callbackManager);
                     }
 
                     @Override
                     public void onError(Exception error) {
                         if (!mPaused)
-                            FastBarcodeScanner.this.onError(error, listener, finalHandler);
+                            callbackManager.onError(error);
                     }
 
                 },
@@ -311,20 +350,19 @@ public class FastBarcodeScanner {
     }
 
     private boolean mPaused = false;
-    public void Pause()
-    {
+
+    public void Pause() {
         mPaused = true;
     }
 
-    public void Resume()
-    {
+    public void Resume() {
         mPaused = false;
     }
 
     /**
      * Stops the scanning process started by StartScan() or StartMultiScan() and frees any shared system resources
      * (e.g. the camera). StartScan() or StartMultiScan() can always be called to restart.
-     *
+     * <p>
      * StopScan() and StartScan()/StartMultiScan() are thus well suited for use from the onPause() and onResume()
      * handlers of a calling application.
      */
@@ -353,139 +391,88 @@ public class FastBarcodeScanner {
     //*********************************************************************
     //*********************************************************************
 
-    public interface ErrorDetectedListener {
-        void onError(Exception error);
-    }
-
-    /**
-     * Callback interface for being notified that a barcode has been detected.
-     *
-     * <p>
-     * The onBarcodeAvailable is called when a new barcode is detected - that is,
-     * if the same barcode is detected in 20 consecutive frames, onBarcodeAvailable
-     * is only called on the first.
-     * </p>
-     * <p>
-     * When no barcodes have been detected in 3 consecutive frames, onBarcodeAvailable
-     * is called with a null barcode parameter ().
-     * </p>
-     */
-    public interface BarcodeDetectedListener extends ErrorDetectedListener {
-        void onSingleBarcodeAvailable(BarcodeInfo barcode, byte[] image, int format, int width, int height);
-    }
-
-    public interface MultipleBarcodesDetectedListener extends ErrorDetectedListener {
-        void onMultipleBarcodeAvailable(BarcodeInfo[] barcodes, byte[] image, int format, int width, int height);
-    }
-
-    public class BarcodeInfo {
-        public final String barcode;
-        public final Point[] points;
-
-        BarcodeInfo(String barcode, Point[] points) {
-            this.barcode = barcode;
-            this.points = points;
-        }
-    }
-
-    private void processSingleImage(Image source, boolean includeImagesInCallback, BarcodeDetectedListener listener, Handler callbackHandler) {
+    private void processSingleImage(Image source, SingleCallbackManager callbackManager) {
         // Decode the image:
         try {
-            if (listener == null) {
-                // Important: free the image as soon as possible,
-                // thus making room for a new capture to begin:
-                source.close();
-                return;
-            }
-
             BinaryBitmap bitmap = mBarcodeFinder.DecodeImage(source);
             Barcode bc = mBarcodeFinder.findSingle(bitmap);
             if (bc == null) {
                 source.close();
-                onSingleBarcodeFound(null, null, listener, callbackHandler);
+                callbackManager.onBlank(null);
             } else {
-                onSingleBarcodeFound(bc, includeImagesInCallback ? source : null, listener, callbackHandler);
+                callbackManager.onBarcode(bc, source);
                 source.close();
             }
         } catch (Exception e) {
             Log.e(TAG, "Error processing image", e);
-            onError(e, listener, callbackHandler);
-        }
-        finally {
+            callbackManager.onError(e);
+        } finally {
             source.close();
         }
     }
 
-    private void processSingleJpeg(byte[] jpegData, int width, int height, boolean includeImagesInCallback, BarcodeDetectedListener listener, Handler callbackHandler) {
-        if (listener == null) {
-            return;
-        }
-
+    private void processSingleJpeg(byte[] jpegData, int width, int height, SingleCallbackManager callbackManager) {
         try {
             BinaryBitmap bitmap = mBarcodeFinder.DecodeImage(jpegData, width, height);
             Barcode bc = mBarcodeFinder.findSingle(bitmap);
             if (bc == null) {
-                onSingleBarcodeFound(null, null, listener, callbackHandler);
+                callbackManager.onBlank(null);
             } else {
-                onSingleBarcodeFound(bc, null/*source*/, listener, callbackHandler);
+                callbackManager.onBarcode(bc, null/*source*/);
             }
         } catch (Exception e) {
             Log.e(TAG, "Error processing image", e);
-            onError(e, listener, callbackHandler);
+            callbackManager.onError(e);
         }
     }
 
-    private void processMultiImage(Image source, int minNoOfBarcodes, String barcodesBeginWith, boolean includeImagesInCallback, MultipleBarcodesDetectedListener listener, Handler callbackHandler) {
+    private void processMultiImage(Image source, int minNoOfBarcodes, MultiCallbackManager callbackManager) {
         // Decode the image:
         try {
-            if (listener == null) {
-                // Important: free the image as soon as possible,
-                // thus making room for a new capture to begin:
-                source.close();
-                return;
-            }
-
             BinaryBitmap bitmap = mBarcodeFinder.DecodeImage(source);
-            Barcode[] bcs = mBarcodeFinder.findMultiple(bitmap, barcodesBeginWith);
+            Barcode[] bcs = mBarcodeFinder.findMultiple(bitmap);
             if (bcs == null) {
                 source.close();
-                onMultipleBarcodesFound(null, null, listener, callbackHandler);
+                callbackManager.onMultipleBarcodesFound(null, null);
             } else if (bcs.length < minNoOfBarcodes) {
-                    source.close();
-                onMultipleBarcodesFound(null, null, listener, callbackHandler);
+                source.close();
+                callbackManager.onMultipleBarcodesFound(null, null);
             } else {
-                onMultipleBarcodesFound(bcs, includeImagesInCallback ? source : null, listener, callbackHandler);
+                callbackManager.onMultipleBarcodesFound(bcs, source);
                 source.close();
             }
         } catch (Exception e) {
             Log.e(TAG, "Error processing image", e);
-            onError(e, listener, callbackHandler);
-        }
-        finally {
+            callbackManager.onError(e);
+        } finally {
             source.close();
         }
     }
 
-    private void processMultiJpeg(byte[] jpegData, int width, int height, int minNoOfBarcodes, String barcodeBeginsWith, boolean includeImagesInCallback, MultipleBarcodesDetectedListener listener, Handler callbackHandler)
-    {
-        if (listener == null) {
-            return;
-        }
-
+    private void processMultiJpeg(byte[] jpegData, int width, int height, int minNoOfBarcodes, MultiCallbackManager callbackManager) {
         try {
             BinaryBitmap bitmap = mBarcodeFinder.DecodeImage(jpegData, width, height);
-            Barcode[] bcs = mBarcodeFinder.findMultiple(bitmap, barcodeBeginsWith);
+            Barcode[] bcs = mBarcodeFinder.findMultiple(bitmap);
             if (bcs == null) {
-                onMultipleBarcodesFound(null, null, listener, callbackHandler);
+                callbackManager.onMultipleBarcodesFound(null, null);
             } else if (bcs.length < minNoOfBarcodes) {
-                onMultipleBarcodesFound(null, null, listener, callbackHandler);
+                callbackManager.onMultipleBarcodesFound(null, null);
             } else {
-                onMultipleBarcodesFound(bcs, null/*source*/, listener, callbackHandler);
+                callbackManager.onMultipleBarcodesFound(bcs, null/*source*/);
             }
         } catch (Exception e) {
             Log.e(TAG, "Error processing image", e);
-            onError(e, listener, callbackHandler);
+            callbackManager.onError(e);
         }
+    }
+
+
+    public boolean isLockFocus() {
+        return mImageSource.isLockFocus();
+    }
+
+    public void setLockFocus(boolean lockFocus) {
+        mImageSource.setLockFocus(lockFocus);
     }
     //*********************************************************************
     //* Managing Barcode events:
@@ -495,169 +482,6 @@ public class FastBarcodeScanner {
     //* Furthermore,
     //*********************************************************************
 
-    private String mLastReportedBarcode = null;
-    private int mNoBarcodeCount = 0;
-    private final int NO_BARCODE_IGNORE_LIMIT = 5;
-
-    private void onSingleBarcodeFound(Barcode bc, Image source, BarcodeDetectedListener listener, Handler callbackHandler) {
-        if (bc == null || bc.contents == null) {
-            Log.v(TAG, "Found barcode: " + null);
-            mNoBarcodeCount++;
-            if (mLastReportedBarcode != null && mNoBarcodeCount >= NO_BARCODE_IGNORE_LIMIT) {
-                mLastReportedBarcode = null;
-                _onSingleBarcode(null, null, source, listener, callbackHandler);
-            }
-        } else {
-            Log.v(TAG, "Found barcode: " + bc.contents);
-            mNoBarcodeCount = 0;
-            if (!bc.contents.equals(mLastReportedBarcode)) {
-                mLastReportedBarcode = bc.contents;
-                _onSingleBarcode(mLastReportedBarcode, bc.points, source, listener, callbackHandler);
-            }
-        }
-    }
-
-    private void _onSingleBarcode(String barcode, Point[] points, final Image source, final BarcodeDetectedListener listener, Handler callbackHandler) {
-        if (listener != null) {
-            final BarcodeInfo bc = new BarcodeInfo(barcode, points);
-            final byte[] serialized = (source == null) ? null : ImageDecoder.Serialize(source);
-            final int width = (source == null) ? 0 : source.getWidth();
-            final int height = (source == null) ? 0 : source.getHeight();
-            final int format = (source == null) ? ImageFormat.UNKNOWN : source.getFormat();
-            callbackHandler.post(
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            listener.onSingleBarcodeAvailable(bc, serialized, format, width, height);
-                        }
-                    }
-            );
-        }
-    }
-
-    private Barcode[] mLastReportedMultiBarcode = null;
-
-    private void onMultipleBarcodesFound(Barcode[] bcs, Image source, MultipleBarcodesDetectedListener listener, Handler callbackHandler) {
-        if (bcs == null) {
-            Log.v(TAG, "Found 0 barcodes");
-            mNoBarcodeCount++;
-            if (mLastReportedMultiBarcode != null && mNoBarcodeCount >= NO_BARCODE_IGNORE_LIMIT) {
-                mLastReportedMultiBarcode = null;
-                _onMultipleBarcodes(mLastReportedMultiBarcode, source, listener, callbackHandler);
-            }
-        } else {
-            Log.v(TAG, "Found " + bcs.length + " barcodes");
-            mNoBarcodeCount = 0;
-            if (!_equals(bcs, mLastReportedMultiBarcode)) {
-                mLastReportedMultiBarcode = bcs;
-                _onMultipleBarcodes(mLastReportedMultiBarcode, source, listener, callbackHandler);
-            }
-        }
-    }
-
-    private static boolean _equals(Barcode[] bcs1, Barcode[] bcs2) {
-        if (bcs1 == bcs2)
-            return true;
-
-        if (bcs1 == null)
-            return false;
-
-        if (bcs2 == null)
-            return false;
-
-        if (bcs1.length != bcs2.length)
-            return false;
-
-        for (int n = 0; n < bcs1.length; n++) {
-            if (bcs1[n] != bcs2[n])
-                return false;
-        }
-
-        return true;
-    }
-
-    private void _onMultipleBarcodes(final Barcode[] barcodes, final Image source, final MultipleBarcodesDetectedListener listener, Handler callbackHandler) {
-        if (listener != null) {
-            final byte[] serialized = (source == null) ? null : ImageDecoder.Serialize(source);
-            final int width = (source == null) ? 0 : source.getWidth();
-            final int height = (source == null) ? 0 : source.getHeight();
-            final int format = (source == null) ? ImageFormat.UNKNOWN : source.getFormat();
-            callbackHandler.post(
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            listener.onMultipleBarcodeAvailable(_convert(barcodes), serialized, format, width, height);
-                        }
-                    }
-            );
-        }
-    }
-
-    private BarcodeInfo[] _convert(Barcode[] barcodes) {
-        if (barcodes == null)
-            return null;
-
-        BarcodeInfo[] res = new BarcodeInfo[barcodes.length];
-        for (int n = 0; n < barcodes.length; n++)
-            res[n] = new BarcodeInfo(barcodes[n].contents, barcodes[n].points);
-
-        return res;
-    }
-
-    private void onError(final Exception error, final ErrorDetectedListener listener, Handler callbackHandler) {
-        if (listener != null) {
-            callbackHandler.post(
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            listener.onError(error);
-                        }
-                    }
-            );
-        }
-    }
-
-
-    //*********************************************************************
-    // Pass-through properties for the barcode scanner
-    //*********************************************************************
-    public double getRelativeTrackingMargin() {
-        return mBarcodeFinder.getRelativeTrackingMargin();
-    }
-
-    public void setRelativeTrackingMargin(double relativeTrackingMargin) {
-        mBarcodeFinder.setRelativeTrackingMargin(relativeTrackingMargin);
-    }
-
-    public int getNoHitsBeforeTrackingLoss() {
-        return mBarcodeFinder.getNoHitsBeforeTrackingLoss();
-    }
-
-    public void setNoHitsBeforeTrackingLoss(int noHitsBeforeTrackingLoss) {
-        mBarcodeFinder.setNoHitsBeforeTrackingLoss(noHitsBeforeTrackingLoss);
-    }
-
-    public EnumSet<BarcodeFormat> getPossibleBarcodeFormats() {
-        return mBarcodeFinder.getPossibleBarcodeFormats();
-    }
-
-    public void setPossibleBarcodeFormats(EnumSet<BarcodeFormat> possibleFormats) {
-        mBarcodeFinder.setPossibleBarcodeFormats(possibleFormats);
-    }
-
-    public boolean isUseTracking() {
-        return mBarcodeFinder.isUseTracking();
-    }
-
-    public void setUseTracking(boolean useTracking) {
-        mBarcodeFinder.setUseTracking(useTracking);
-    }
-
-    public boolean isLockFocus() {
-        return mImageSource.isLockFocus();
-    }
-
-    public void setLockFocus(boolean lockFocus) {
-        mImageSource.setLockFocus(lockFocus);
-    }
 }
+
+

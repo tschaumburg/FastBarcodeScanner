@@ -40,14 +40,15 @@ public class StillSequenceCamera implements IStillSequenceCamera {
     private boolean mLockFocus = true;
     private int mState = CLOSED;
 
-    public StillSequenceCamera(Activity activity, SurfaceView preview, int minPixels) {
+    public StillSequenceCamera(Activity activity, StillSequenceCameraOptions camOptions)
+    {
         mActivity = activity;
-        mPreview = preview;
+        mPreview = camOptions.preview;
         mState = CLOSED;
 
-        if (minPixels < 1024*768)
-            minPixels = 1024*768;
-        this.mMinPixels = minPixels;
+        if (camOptions.minPixels < 1024*768)
+            camOptions.minPixels = 1024*768;
+        this.mMinPixels = camOptions.minPixels;
 
         // Open a camera:
         int chosenCameraId = -1;

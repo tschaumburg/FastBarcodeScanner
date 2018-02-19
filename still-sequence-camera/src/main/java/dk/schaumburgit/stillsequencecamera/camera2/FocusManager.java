@@ -30,6 +30,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.ThreadFactory;
 
 /**
  * Created by Thomas Schaumburg on 05-12-2015.
@@ -445,16 +448,15 @@ public class FocusManager {
                                 null, // => no callbacks
                                 null // no callbacks => callback handler irrelevant
                         );
+                        mCaptureSession.setRepeatingRequest(
+                                mPreviewRequestBuilder.build(),
+                                null, // => no callbacks
+                                null // no callbacks => callback handler irrelevant
+                        );
 
                         mCameraCaptureSession.stopRepeating();
                         Log.i(TAG, "Stopped repeating");
 
-                        //// TODO: is this used at all...?
-                        //mCameraCaptureSession.setRepeatingRequest(
-                        //        mPreviewRequest,
-                        //        null, // => no callbacks
-                        //        cameraHandler
-                        //);
                     } catch (CameraAccessException cae) {
                         onError(cae);
                     }
@@ -489,11 +491,44 @@ public class FocusManager {
                 if (mFocusingStateMachineThread != null) {
                     Log.i(TAG, "Killed focusing thread");
                     try {
-                        mFocusingStateMachineHandler.removeCallbacksAndMessages(null);
-                        mFocusingStateMachineThread.quitSafely();
-                        mFocusingStateMachineThread.join();
+                        // At this point, all camera requests have been
+                        // cancelled, and no new images will enter the
+                        // camera pipeline.
+                        //
+                        // All we need to do now is to clean up the focusing
+                        // thread and handler.
+                        //
+                        // ...BUT there will still be a couple of images
+                        // trickling thorough the camera pipeline, which
+                        // will cause ugly exceptions on their arrival if
+                        // we do the cleanup now.
+                        //
+                        // SO instead we'll schedule the cleanup to happen
+                        // in a few seconds, when the pipeline is presumed
+                        // to be clear.
+                        //
+                        // Ugly? Oh yes
+                        final Handler handler = mFocusingStateMachineHandler;
+                        final HandlerThread thread = mFocusingStateMachineThread;
                         mFocusingStateMachineThread = null;
                         mFocusingStateMachineHandler = null;
+                        Timer timer = new Timer();
+                        timer.schedule(
+                                new TimerTask() {
+                                    @Override
+                                    public void run() {
+                                        try {
+                                            handler.removeCallbacksAndMessages(null);
+                                            thread.quitSafely();
+                                            thread.join();
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                        }
+
+                                    }
+                                },
+                                1500
+                        );
                     } catch (Exception e) {
                         e.printStackTrace();
                     }

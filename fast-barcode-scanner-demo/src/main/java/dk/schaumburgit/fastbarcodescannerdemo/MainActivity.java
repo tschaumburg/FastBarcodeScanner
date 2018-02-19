@@ -30,16 +30,21 @@ import android.view.MenuItem;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import java.io.ByteArrayOutputStream;
 
+import dk.schaumburgit.fastbarcodescanner.BarcodeDetectedListener;
+import dk.schaumburgit.fastbarcodescanner.BarcodeInfo;
 import dk.schaumburgit.fastbarcodescanner.FastBarcodeScanner;
-import dk.schaumburgit.fastbarcodescanner.ImageDecoder;
-import dk.schaumburgit.fastbarcodescanner.JpegUtils;
+import dk.schaumburgit.fastbarcodescanner.imageutils.ImageDecoder;
+import dk.schaumburgit.fastbarcodescanner.imageutils.JpegUtils;
+import dk.schaumburgit.fastbarcodescanner.MultipleBarcodesDetectedListener;
+import dk.schaumburgit.fastbarcodescanner.fluent.ScannerBuilder;
 
 public class MainActivity extends AppCompatActivity
-        implements FastBarcodeScanner.BarcodeDetectedListener, FastBarcodeScanner.MultipleBarcodesDetectedListener//, FastBarcodeScanner.ScanningStateListener
+        implements BarcodeDetectedListener, MultipleBarcodesDetectedListener//, FastBarcodeScanner.ScanningStateListener
 {
     private static final String TAG = "FastBarcodeScannerDemo";
     private SurfaceView mSurfaceView;
@@ -116,10 +121,32 @@ public class MainActivity extends AppCompatActivity
         requestCameraPermission();
 
         if (mScanner == null) {
+            nCallbacks = 0;
             //mScanner = new FastBarcodeScanner(this, (TextureView)null, 4*1024*768);
-            mScanner = new FastBarcodeScanner(this, mTextureView, 4*1024*768);
             //mScanner = new FastBarcodeScanner(this, mSurfaceView);
             //mScanner.setScanningStateListener(this);
+            //mScanner = new FastBarcodeScanner(this, mTextureView, 4*1024*768);
+            /*mScanner =
+                    FastBarcodeScanner
+                            .BackCamera(this, mTextureView) // (TextureView)null)
+                            .Capture(4*1024*768)
+                            .scanQR()
+                            //.beginningWith("sdp:card")
+                            .enableTracking(1.0, 3, "")
+                            .deglitch(3)
+                            //.verbose()
+                            .Build();*/
+
+            mScanner =
+                    ScannerBuilder
+                            .fromCamera(mTextureView)
+                            .resolution(4*1024*768)
+                            .findQR()
+                            .emptyDeglitch(3)
+                            .errorDeglitch(3)
+                            .track(1.0, 3)
+                            .build(this);
+
         }
 
         Button startButton = (Button)findViewById(R.id.start);
@@ -129,9 +156,23 @@ public class MainActivity extends AppCompatActivity
         startButton.setEnabled(false);
         mScanner.setLockFocus(true);
         //mScanner.setIncludeImagesInCallback(true);
-        mScanner.StartMultiScan(true, 4, "pfx:scorecard:", this, null);
+        //mScanner.StartMultiScan(true, 4, "pfx:scorecard:", this, null);
+        mScanner.StartScan(false, this, null);
         stopButton.setEnabled(true);
         pauseResumeButton.setEnabled(true);
+    }
+
+    private void rotate() {
+        int h = mTextureView.getLayoutParams().height;
+        int w = mTextureView.getLayoutParams().width;
+        //mTextureView.getLayoutParams().height = w;
+        //mTextureView.getLayoutParams().width = h;
+
+        //ViewParent vp = mTextureView.getParent();
+        //vp.requestLayout();
+        //vp.invalidate();
+        //vp.recomputeViewAttributes(mTextureView);
+        mTextureView.setLayoutParams(new RelativeLayout.LayoutParams(h, w));
     }
 
     private void stopScan() {
@@ -145,22 +186,8 @@ public class MainActivity extends AppCompatActivity
         startButton.setEnabled(true);
     }
 
-    private void showSpinner()
-    {
-        ProgressBar spinner;
-        spinner = (ProgressBar)findViewById(R.id.progressBar1);
-        spinner.setVisibility(View.VISIBLE);
-    }
-
-    private void hideSpinner()
-    {
-        ProgressBar spinner;
-        spinner = (ProgressBar)findViewById(R.id.progressBar1);
-        spinner.setVisibility(View.INVISIBLE);
-    }
-
     @Override
-    public void onMultipleBarcodeAvailable(FastBarcodeScanner.BarcodeInfo[] barcodes, byte[] image, int format, int width, int height) {
+    public void onMultipleBarcodeAvailable(BarcodeInfo[] barcodes, byte[] image, int format, int width, int height) {
         String barcodesText = null;
 
         if (barcodes != null && barcodes.length > 0)
@@ -200,14 +227,17 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    private int nCallbacks = 9;
     @Override
-    public void onSingleBarcodeAvailable(FastBarcodeScanner.BarcodeInfo barcodeInfo, byte[] image, int format, int width, int height) {
+    public void onSingleBarcodeAvailable(BarcodeInfo barcodeInfo, byte[] image, int format, int width, int height) {
+        nCallbacks++;
         String barcode = null;
         if (barcodeInfo != null)
             barcode = barcodeInfo.barcode;
 
+        final int count = nCallbacks;
         final String latestBarcode = (barcode == null) ? "none" : barcode;
-        final TextView resView = (TextView) findViewById(R.id.textView);
+        final TextView resView = (TextView) findViewById(R.id.textView2);
 
         Log.v(TAG, "Start decode");
         final Bitmap bm = (image == null) ? null : ImageDecoder.ToBitmap(image, format, width, height);
@@ -217,7 +247,7 @@ public class MainActivity extends AppCompatActivity
                 new Runnable() {
                     @Override
                     public void run() {
-                        resView.setText(latestBarcode);
+                        resView.setText(latestBarcode + "  (" + count + ")");
                         if (bm != null)
                             mImageView.setImageBitmap(bm);
                     }

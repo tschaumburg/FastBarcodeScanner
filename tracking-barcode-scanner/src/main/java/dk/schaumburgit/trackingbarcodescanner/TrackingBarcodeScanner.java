@@ -4,8 +4,6 @@ package dk.schaumburgit.trackingbarcodescanner;
  * Created by Thomas on 21-11-2015.
  */
 
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.Point;
 import android.media.Image;
@@ -15,20 +13,14 @@ import com.google.zxing.BarcodeFormat;
 import com.google.zxing.BinaryBitmap;
 import com.google.zxing.DecodeHintType;
 import com.google.zxing.LuminanceSource;
-import com.google.zxing.PlanarYUVLuminanceSource;
-import com.google.zxing.RGBLuminanceSource;
 import com.google.zxing.Result;
 import com.google.zxing.ResultPoint;
 import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.multi.qrcode.QRCodeMultiReader;
-import com.google.zxing.MultiFormatReader;
-import com.google.zxing.multi.GenericMultipleBarcodeReader;
 import com.google.zxing.qrcode.QRCodeReader;
 
 import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.EnumSet;
 import java.util.Hashtable;
 import java.util.Map;
@@ -74,7 +66,7 @@ public class TrackingBarcodeScanner {
      */
     private static final String TAG = "BarcodeFinder";
 
-    private static final int[] mAllImageFormats =
+    /*private static final int[] mAllImageFormats =
             {
                     ImageFormat.UNKNOWN,
                     ImageFormat.RGB_565,
@@ -101,17 +93,24 @@ public class TrackingBarcodeScanner {
             {
                     ImageFormat.YUV_420_888,
                     ImageFormat.JPEG
-            };
-    private boolean mUseTracking = true;
-    private double mRelativeTrackingMargin = 1.0;
-    private int mNoHitsBeforeTrackingLoss = 5;
+            };*/
     private EnumSet<BarcodeFormat> mPossibleBarcodeFormats = EnumSet.of(BarcodeFormat.QR_CODE);
 
     private QRCodeReader mReader = new QRCodeReader();
     private QRCodeMultiReader mMultiReader = new QRCodeMultiReader(); //new GenericMultipleBarcodeReader(new MultiFormatReader());
     private Hashtable<DecodeHintType, Object> mDecodeHints;
-    public TrackingBarcodeScanner()
+    private final TrackingOptions mTrackingOptions;
+    private final ScanOptions mScanOptions;
+
+    /*public TrackingBarcodeScanner()
     {
+        this(new ScanOptions(), new TrackingOptions());
+    }*/
+
+    public TrackingBarcodeScanner(ScanOptions scanOptions, TrackingOptions trackingOptions)
+    {
+        this.mTrackingOptions = trackingOptions;
+        this.mScanOptions = scanOptions;
         mDecodeHints = new Hashtable<DecodeHintType, Object>();
         mDecodeHints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
         mDecodeHints.put(DecodeHintType.POSSIBLE_FORMATS, mPossibleBarcodeFormats);
@@ -165,7 +164,7 @@ public class TrackingBarcodeScanner {
             int left = 0;
             int top = 0;
 
-            if (mUseTracking) {
+            if (mTrackingOptions != null && mTrackingOptions.noHitsBeforeTrackingLoss > 0) {
                 // First try where we found the barcode before (much quicker that way):
                 if (mLatestMatch != null) {
                     Geometry.Rectangle crop = mLatestMatch.normalize(0, 0, bitmap.getWidth(), bitmap.getHeight());
@@ -195,7 +194,7 @@ public class TrackingBarcodeScanner {
 
             if (r == null)
             {
-                if (mConsecutiveNoHits++ > mNoHitsBeforeTrackingLoss)
+                if (mConsecutiveNoHits++ > mTrackingOptions.noHitsBeforeTrackingLoss)
                     mLatestMatch = null;
 
                 return null;
@@ -216,14 +215,14 @@ public class TrackingBarcodeScanner {
         return res;
     }
 
-    public Barcode[] findMultiple(BinaryBitmap bitmap, String barcodesBeginWith)
+    public Barcode[] findMultiple(BinaryBitmap bitmap)
     {
         if (bitmap == null)
             return null;
 
         try {
             Result[] rs = mMultiReader.decodeMultiple(bitmap, mDecodeHints);
-            return _convert(rs, barcodesBeginWith);
+            return _convert(rs, this.mScanOptions.beginsWith);
         } catch (com.google.zxing.NotFoundException e) {
             // not an error - we just didn't find a barcode
         } catch (Exception e) {
@@ -285,7 +284,7 @@ public class TrackingBarcodeScanner {
                 //Log.d(TAG, "CROP b: (" + p.getX() + ", " + p.getY() + ") => (" + match.x + ", " + match.y + ", " + match.width + ", " + match.height + ")");
             }
 
-            match = match.addRelativeMargin(mRelativeTrackingMargin);
+            match = match.addRelativeMargin(mTrackingOptions.relativeTrackingMargin);
 
             if (match.width <= 0 || match.height <= 0)
                 match = null;
@@ -296,22 +295,6 @@ public class TrackingBarcodeScanner {
         }
     }
 
-    public double getRelativeTrackingMargin() {
-        return mRelativeTrackingMargin;
-    }
-
-    public void setRelativeTrackingMargin(double mRelativeTrackingMargin) {
-        this.mRelativeTrackingMargin = mRelativeTrackingMargin;
-    }
-
-    public int getNoHitsBeforeTrackingLoss() {
-        return mNoHitsBeforeTrackingLoss;
-    }
-
-    public void setNoHitsBeforeTrackingLoss(int mNoHitsBeforeTrackingLoss) {
-        this.mNoHitsBeforeTrackingLoss = mNoHitsBeforeTrackingLoss;
-    }
-
     public EnumSet<BarcodeFormat> getPossibleBarcodeFormats() {
         return mPossibleBarcodeFormats;
     }
@@ -319,14 +302,6 @@ public class TrackingBarcodeScanner {
     public void setPossibleBarcodeFormats(EnumSet<BarcodeFormat> mPossibleFormats) {
         this.mPossibleBarcodeFormats = mPossibleFormats;
         mDecodeHints.put(DecodeHintType.POSSIBLE_FORMATS, mPossibleBarcodeFormats);
-    }
-
-    public boolean isUseTracking() {
-        return mUseTracking;
-    }
-
-    public void setUseTracking(boolean useTracking) {
-        this.mUseTracking = useTracking;
     }
 
     public Map<Integer, Double> getPreferredImageFormats()

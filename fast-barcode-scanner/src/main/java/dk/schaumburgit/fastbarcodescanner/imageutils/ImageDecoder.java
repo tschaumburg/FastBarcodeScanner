@@ -1,4 +1,4 @@
-package dk.schaumburgit.fastbarcodescanner;
+package dk.schaumburgit.fastbarcodescanner.imageutils;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;

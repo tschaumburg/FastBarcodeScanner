@@ -58,49 +58,28 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
     private boolean mLockFocus = true;
 
     /**
-     * Creates a headless #StillSequenceCamera2
-     *
-     * @param activity The activity associated with the calling app.
-     */
-    public StillSequenceCamera2(Activity activity)
-    {
-        this(activity, null, 1024*768);
-    }
-
-    /**
-     * Creates a headless #StillSequenceCamera2
-     *
-     * @param activity The activity associated with the calling app.
-     * @param minPixels The preferred minimum number of pixels in the captured images
-     *                  (i.e. width*height)
-     */
-    public StillSequenceCamera2(Activity activity, int minPixels)
-    {
-        this(activity, null, minPixels);
-    }
-
     /**
      * Creates a #StillSequenceCamera2 with a preview
      *
      * @param activity The activity associated with the calling app.
-     * @param minPixels The preferred minimum number of pixels in the captured images
+     * @param camOptions minPixels The preferred minimum number of pixels in the captured images
      *                  (i.e. width*height)
-     * @param textureView The #TextureView to display the preview in (use null for headless scanning)
+     * @                 textureView The #TextureView to display the preview in (use null for headless scanning)
      */
-    public StillSequenceCamera2(Activity activity, TextureView textureView, int minPixels)
+    public StillSequenceCamera2(Activity activity, StillSequenceCamera2Options camOptions)
     {
         if (activity==null)
             throw new NullPointerException("StillSequenceCamera2 requires an Activity");
 
-        if (minPixels < 1024*768)
-            minPixels = 1024*768;
+        if (camOptions.minPixels < 1024*768)
+            camOptions.minPixels = 1024*768;
 
         this.mActivity = activity;
 
-        mFocusManager = new FocusManager(activity, textureView);
-        if (textureView !=null)
-            mPreview = new PreviewManager(activity, textureView);
-        mImageCapture = new CaptureManager(activity, mPreview, minPixels);
+        mFocusManager = new FocusManager(activity, camOptions.preview);
+        if (camOptions.preview !=null)
+            mPreview = new PreviewManager(activity, camOptions.preview);
+        mImageCapture = new CaptureManager(activity, mPreview, camOptions.minPixels);
 
         mState = CLOSED;
 
@@ -215,7 +194,7 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                                 Log.v(TAG, "start(): state => STARTING");
                                 List<Surface> surfaces;
                                 if (mPreview != null)
-                                    surfaces = Arrays.asList(mFocusManager.getSurface(), mImageCapture.getSurface(), mPreview.getSurface());
+                                    surfaces = Arrays.asList(mFocusManager.getSurface(), mImageCapture.getSurface());//, mPreview.getSurface());
                                 else
                                     surfaces = Arrays.asList(mFocusManager.getSurface(), mImageCapture.getSurface());
                                 mCameraDevice.createCaptureSession(
