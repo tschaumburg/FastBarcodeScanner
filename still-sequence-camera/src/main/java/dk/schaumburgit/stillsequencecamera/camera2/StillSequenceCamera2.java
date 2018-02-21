@@ -64,7 +64,6 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
      * @param activity The activity associated with the calling app.
      * @param camOptions minPixels The preferred minimum number of pixels in the captured images
      *                  (i.e. width*height)
-     * @                 textureView The #TextureView to display the preview in (use null for headless scanning)
      */
     public StillSequenceCamera2(Activity activity, StillSequenceCamera2Options camOptions)
     {

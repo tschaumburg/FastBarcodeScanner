@@ -1,11 +1,8 @@
 package dk.schaumburgit.fastbarcodescanner.fluent;
 
 import android.app.Activity;
-import android.view.TextureView;
-
-import dk.schaumburgit.fastbarcodescanner.BarcodeDetectedListener;
+import dk.schaumburgit.fastbarcodescanner.CallBackOptions;
 import dk.schaumburgit.fastbarcodescanner.FastBarcodeScanner;
-import dk.schaumburgit.fastbarcodescanner.FilterOptions;
 
 /**
  * Created by Thomas on 08-02-2018.
@@ -23,12 +20,12 @@ public interface IScannerBuilder
 
     IScannerBuilder emptyMarker(String emptyMarkerContents);
     IScannerBuilder emptyDeglitch(int nSamples);
-    IScannerBuilder emptyVerbosity(FilterOptions.BlankVerbosity verbosity);
+    IScannerBuilder emptyVerbosity(CallBackOptions.BlankVerbosity verbosity);
 
     IScannerBuilder errorDeglitch(int nSamples);
-    IScannerBuilder errorVerbosity(FilterOptions.ErrorVerbosity verbosity);
+    IScannerBuilder errorVerbosity(CallBackOptions.ErrorVerbosity verbosity);
 
-    IScannerBuilder resultVerbosity(FilterOptions.ResultVerbosity verbosity);
+    IScannerBuilder resultVerbosity(CallBackOptions.ResultVerbosity verbosity);
 
     IScannerBuilder beginsWith(String prefix);
     IScannerBuilder track(

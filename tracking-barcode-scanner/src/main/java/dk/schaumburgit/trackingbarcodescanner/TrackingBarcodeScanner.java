@@ -164,7 +164,7 @@ public class TrackingBarcodeScanner {
             int left = 0;
             int top = 0;
 
-            if (mTrackingOptions != null && mTrackingOptions.noHitsBeforeTrackingLoss > 0) {
+            if (mTrackingOptions != null && mTrackingOptions.trackingPatience > 0) {
                 // First try where we found the barcode before (much quicker that way):
                 if (mLatestMatch != null) {
                     Geometry.Rectangle crop = mLatestMatch.normalize(0, 0, bitmap.getWidth(), bitmap.getHeight());
@@ -194,7 +194,7 @@ public class TrackingBarcodeScanner {
 
             if (r == null)
             {
-                if (mConsecutiveNoHits++ > mTrackingOptions.noHitsBeforeTrackingLoss)
+                if (mConsecutiveNoHits++ > mTrackingOptions.trackingPatience)
                     mLatestMatch = null;
 
                 return null;
@@ -284,7 +284,7 @@ public class TrackingBarcodeScanner {
                 //Log.d(TAG, "CROP b: (" + p.getX() + ", " + p.getY() + ") => (" + match.x + ", " + match.y + ", " + match.width + ", " + match.height + ")");
             }
 
-            match = match.addRelativeMargin(mTrackingOptions.relativeTrackingMargin);
+            match = match.addRelativeMargin(mTrackingOptions.trackingMargin);
 
             if (match.width <= 0 || match.height <= 0)
                 match = null;

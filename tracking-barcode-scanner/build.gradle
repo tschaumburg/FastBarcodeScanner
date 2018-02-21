@@ -1,5 +1,6 @@
 ext {
     DESCRIPTION = 'A wrapper around the ZXing core library, optimized for use with video-like image sequences'
+    PUBLISH_ARTIFACT_ID = 'tracking-barcode-scanner'
 }
 
 android {
@@ -21,7 +22,16 @@ android {
 }
 
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
-    testCompile 'junit:junit:4.12'
-    compile 'com.google.zxing:core:3.2.1'
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    testImplementation 'junit:junit:4.12'
+    implementation 'com.google.zxing:core:3.2.1'
+//    classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.2'            // ADD THIS LINE
+//    classpath 'com.github.dcendents:android-maven-plugin:1.2'                 // AND THIS LINE
 }
+
+
+apply from: 'https://raw.githubusercontent.com/blundell/release-android-library/master/android-release-aar.gradle'
+
+// Individual files - slow, but works:
+
+

@@ -1,0 +1,7 @@
+siteUrl = <url-of-site-with-information-about-library>
+gitUrl = <git url>
+version = x.y.z
+groupId = <group id>
+licenses = ['GPL-3.0'] // or something else
+id = <package name>
+name = <module name> // actually not used

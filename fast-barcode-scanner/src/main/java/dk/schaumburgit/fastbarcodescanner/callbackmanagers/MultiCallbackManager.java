@@ -19,7 +19,6 @@ public class MultiCallbackManager //extends ErrorCallbackHandler
      */
     private static final String TAG = "FastBarcodeScanner";
 
-    private final FilterOptions mFilterOptions;
     private final ScanOptions mScanOptions;
     private final Handler callbackHandler;
 
@@ -29,7 +28,6 @@ public class MultiCallbackManager //extends ErrorCallbackHandler
 
     public MultiCallbackManager(
             ScanOptions scanOptions,
-            FilterOptions filterOptions,
             CallBackOptions callbackOptions,
             MultipleBarcodesDetectedListener listener,
             Handler callbackHandler
@@ -38,10 +36,6 @@ public class MultiCallbackManager //extends ErrorCallbackHandler
         if (scanOptions == null)
             throw new IllegalArgumentException("scanOptions is null");
         this.mScanOptions = scanOptions;
-
-        if (filterOptions == null)
-            throw new IllegalArgumentException("filterOptions is null");
-        this.mFilterOptions = filterOptions;
 
         if (callbackHandler == null)
             throw new IllegalArgumentException("callbackHandler is null");
@@ -65,16 +59,16 @@ public class MultiCallbackManager //extends ErrorCallbackHandler
             Log.v(TAG, "Found 0 barcodes");
             mNoBarcodeCount++;
             //if (mLastReportedMultiBarcode != null && mNoBarcodeCount >= NO_BARCODE_IGNORE_LIMIT) {
-            if (mNoBarcodeCount >= this.mFilterOptions.emptyDeglitchLevel) {
+            if (mNoBarcodeCount >= this.callbackOptions.blankReluctance) {
                 //mLastReportedMultiBarcode = null;
-                _onMultipleBarcodes(mLastReportedMultiBarcode, callbackOptions.includeImageInCallback ? source : null, listener, callbackHandler);
+                _onMultipleBarcodes(mLastReportedMultiBarcode, callbackOptions.includeImage ? source : null, listener, callbackHandler);
             }
         } else {
             Log.v(TAG, "Found " + bcs.length + " barcodes");
             mNoBarcodeCount = 0;
             if (!_equals(bcs, mLastReportedMultiBarcode)) {
                 mLastReportedMultiBarcode = bcs;
-                _onMultipleBarcodes(mLastReportedMultiBarcode, callbackOptions.includeImageInCallback ? source : null, listener, callbackHandler);
+                _onMultipleBarcodes(mLastReportedMultiBarcode, callbackOptions.includeImage ? source : null, listener, callbackHandler);
             }
         }
     }
@@ -82,7 +76,7 @@ public class MultiCallbackManager //extends ErrorCallbackHandler
     protected int mConsecutiveErrorCount = 0;
     public void onError(final Exception error) {
         mConsecutiveErrorCount++;
-        if (mConsecutiveErrorCount >= this.mFilterOptions.errorDeglitchLevel) {
+        if (mConsecutiveErrorCount >= this.callbackOptions.errorReluctance) {
             callbackHandler.post(
                     new Runnable() {
                         @Override

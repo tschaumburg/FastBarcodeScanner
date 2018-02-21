@@ -80,8 +80,8 @@ public class FastBarcodeScanner {
     private final IStillSequenceCamera mImageSource;
     private final TrackingBarcodeScanner mBarcodeFinder;
 
-    private final FilterOptions mFilterOptions;
     private final ScanOptions mScanOptions;
+    private final CallBackOptions mCallBackOptions;
 
     @TargetApi(21)
     public FastBarcodeScanner(
@@ -89,13 +89,13 @@ public class FastBarcodeScanner {
             StillSequenceCamera2Options cameraOptions,
             ScanOptions scanOptions,
             TrackingOptions trackingOptions,
-            FilterOptions filterOptions
+            CallBackOptions callBackOptions
     ) {
         if (activity == null)
             throw new InvalidParameterException("activity cannot be null");
 
-        this.mFilterOptions = filterOptions;
         this.mScanOptions = scanOptions;
+        this.mCallBackOptions = callBackOptions;
 
         this.mActivity = activity;
         this.mBarcodeFinder = new TrackingBarcodeScanner(scanOptions, trackingOptions);
@@ -136,7 +136,7 @@ public class FastBarcodeScanner {
                 new StillSequenceCamera2Options(textureView, resolution, StillSequenceCamera2Options.Facing.Back),
                 new ScanOptions(),
                 new TrackingOptions(),
-                new FilterOptions()
+                new CallBackOptions()
         );
     }
 
@@ -161,13 +161,13 @@ public class FastBarcodeScanner {
             StillSequenceCameraOptions cameraOptions,
             ScanOptions scanOptions,
             TrackingOptions trackingOptions,
-            FilterOptions filterOptions
+            CallBackOptions callBackOptions
     ) {
         if (activity == null)
             throw new InvalidParameterException("activity cannot be null");
 
-        this.mFilterOptions = filterOptions;
         this.mScanOptions = scanOptions;
+        this.mCallBackOptions = callBackOptions;
 
         if (cameraOptions == null)
             throw new InvalidParameterException("cameraOptions cannot be null");
@@ -210,7 +210,7 @@ public class FastBarcodeScanner {
             SurfaceView surfaceView,
             int resolution
     ) {
-        this(activity, new StillSequenceCameraOptions(surfaceView, resolution), new ScanOptions(), new TrackingOptions(), new FilterOptions());
+        this(activity, new StillSequenceCameraOptions(surfaceView, resolution), new ScanOptions(), new TrackingOptions(), new CallBackOptions());
     }
 
     /**
@@ -254,7 +254,7 @@ public class FastBarcodeScanner {
         mProcessingThread.start();
         mProcessingHandler = new Handler(mProcessingThread.getLooper());
 
-        final SingleCallbackManager callbackManager = new SingleCallbackManager(this.mScanOptions, this.mFilterOptions, new CallBackOptions(includeImagesInCallback), listener, finalHandler);
+        final SingleCallbackManager callbackManager = new SingleCallbackManager(this.mScanOptions, new CallBackOptions(includeImagesInCallback), listener, finalHandler);
         mImageSource.start(
                 new IStillSequenceCamera.OnImageAvailableListener() {
 
@@ -320,7 +320,7 @@ public class FastBarcodeScanner {
         mProcessingThread.start();
         mProcessingHandler = new Handler(mProcessingThread.getLooper());
 
-        final MultiCallbackManager callbackManager = new MultiCallbackManager(this.mScanOptions, this.mFilterOptions, new CallBackOptions(includeImagesInCallback), listener, finalHandler);
+        final MultiCallbackManager callbackManager = new MultiCallbackManager(this.mScanOptions, new CallBackOptions(includeImagesInCallback), listener, finalHandler);
         mImageSource.start(
                 new IStillSequenceCamera.OnImageAvailableListener() {
 

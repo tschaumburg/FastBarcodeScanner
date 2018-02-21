@@ -7,16 +7,13 @@ import android.view.TextureView;
 import dk.schaumburgit.fastbarcodescanner.BarcodeDetectedListener;
 import dk.schaumburgit.fastbarcodescanner.CallBackOptions;
 import dk.schaumburgit.fastbarcodescanner.FastBarcodeScanner;
-import dk.schaumburgit.fastbarcodescanner.FilterOptions;
-import dk.schaumburgit.fastbarcodescanner.fluent.IScannerBuilder;
 import dk.schaumburgit.stillsequencecamera.camera.StillSequenceCameraOptions;
 import dk.schaumburgit.stillsequencecamera.camera2.StillSequenceCamera2Options;
 import dk.schaumburgit.trackingbarcodescanner.ScanOptions;
 import dk.schaumburgit.trackingbarcodescanner.TrackingOptions;
 
 public class ScannerBuilder implements IScannerBuilder {
-    private final FilterOptions filterOptions = new FilterOptions();
-    //private final CallBackOptions callbackOptions = new CallBackOptions();
+    private final CallBackOptions callbackOptions = new CallBackOptions();
 
     //private final Activity activity;
     private final StillSequenceCameraOptions cameraOptions;
@@ -68,7 +65,7 @@ public class ScannerBuilder implements IScannerBuilder {
     @Override
     public IScannerBuilder emptyMarker(String emptyMarkerContents) {
         IScannerBuilder res = this;// new FastBarcodeScannerBuilder(this);
-        this.scanOptions.emptyMarkerContents = emptyMarkerContents;
+        this.scanOptions.emptyMarker = emptyMarkerContents;
         return res;
     }
 
@@ -82,43 +79,43 @@ public class ScannerBuilder implements IScannerBuilder {
     @Override
     public IScannerBuilder errorDeglitch(int nSamples) {
         IScannerBuilder res = this;// new FastBarcodeScannerBuilder(this);
-        this.filterOptions.errorDeglitchLevel = nSamples;
+        this.callbackOptions.errorReluctance = nSamples;
         return res;
     }
 
     @Override
     public IScannerBuilder emptyDeglitch(int nSamples) {
         IScannerBuilder res = this;// new FastBarcodeScannerBuilder(this);
-        this.filterOptions.emptyDeglitchLevel = nSamples;
+        this.callbackOptions.blankReluctance = nSamples;
         return res;
     }
 
     @Override
-    public IScannerBuilder resultVerbosity(FilterOptions.ResultVerbosity verbosity) {
+    public IScannerBuilder resultVerbosity(CallBackOptions.ResultVerbosity verbosity) {
         IScannerBuilder res = this;// new FastBarcodeScannerBuilder(this);
-        this.filterOptions.resultVerbosity = verbosity;
+        this.callbackOptions.resultVerbosity = verbosity;
         return res;
     }
 
     @Override
-    public IScannerBuilder emptyVerbosity(FilterOptions.BlankVerbosity verbosity) {
+    public IScannerBuilder emptyVerbosity(CallBackOptions.BlankVerbosity verbosity) {
         IScannerBuilder res = this;// new FastBarcodeScannerBuilder(this);
-        this.filterOptions.blankVerbosity = verbosity;
+        this.callbackOptions.blankVerbosity = verbosity;
         return res;
     }
 
     @Override
-    public IScannerBuilder errorVerbosity(FilterOptions.ErrorVerbosity verbosity) {
+    public IScannerBuilder errorVerbosity(CallBackOptions.ErrorVerbosity verbosity) {
         IScannerBuilder res = this;// new FastBarcodeScannerBuilder(this);
-        this.filterOptions.errorVerbosity = verbosity;
+        this.callbackOptions.errorVerbosity = verbosity;
         return res;
     }
 
     @Override
     public IScannerBuilder track(double relativeTrackingMargin, int nRetries) {
         ScannerBuilder res = this;// new FastBarcodeScannerBuilder(this);
-        res.trackingOptions.relativeTrackingMargin = relativeTrackingMargin;
-        res.trackingOptions.noHitsBeforeTrackingLoss = nRetries;
+        res.trackingOptions.trackingMargin = relativeTrackingMargin;
+        res.trackingOptions.trackingPatience = nRetries;
         return res;
     }
 
@@ -127,11 +124,11 @@ public class ScannerBuilder implements IScannerBuilder {
             Activity activity
     ) {
         if (this.camera2Options != null) {
-            return new FastBarcodeScanner(activity, this.camera2Options, this.scanOptions, this.trackingOptions, this.filterOptions);
+            return new FastBarcodeScanner(activity, this.camera2Options, this.scanOptions, this.trackingOptions, this.callbackOptions);
         }
 
         if (this.cameraOptions != null) {
-            return new FastBarcodeScanner(activity, this.cameraOptions, this.scanOptions, this.trackingOptions, this.filterOptions);
+            return new FastBarcodeScanner(activity, this.cameraOptions, this.scanOptions, this.trackingOptions, this.callbackOptions);
         }
 
         return null;

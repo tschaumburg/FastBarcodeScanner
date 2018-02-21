@@ -23,7 +23,6 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
      */
     private static final String TAG = "FastBarcodeScanner";
 
-    private final FilterOptions mFilterOptions;
     private final ScanOptions mScanOptions;
     private final BarcodeDetectedListener listener;
     private final CallBackOptions callbackOptions;
@@ -31,7 +30,6 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
 
     public SingleCallbackManager(
             ScanOptions scanOptions,
-            FilterOptions filterOptions,
             CallBackOptions callbackOptions,
             BarcodeDetectedListener listener,
             Handler callbackHandler
@@ -39,10 +37,6 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
         if (scanOptions == null)
             throw new IllegalArgumentException("scanOptions is null");
         this.mScanOptions = scanOptions;
-
-        if (filterOptions == null)
-            throw new IllegalArgumentException("filterOptions is null");
-        this.mFilterOptions = filterOptions;
 
         if (callbackHandler == null)
             throw new IllegalArgumentException("callbackHandler is null");
@@ -70,10 +64,10 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
         Log.v(TAG, "Found barcode: " + null);
         mConsecutiveBlankCount++;
         mConsecutiveErrorCount = 0;
-        //if (mLastReportedBarcode != null && mNoBarcodeCount >= this.mFilterOptions.emptyDeglitchLevel) {
-        if (mConsecutiveBlankCount >= this.mFilterOptions.emptyDeglitchLevel) {
+        //if (mLastReportedBarcode != null && mNoBarcodeCount >= this.mFilterOptions.blankReluctance) {
+        if (mConsecutiveBlankCount >= this.callbackOptions.blankReluctance) {
             //mLastReportedBarcode = null;
-            sendBlank(callbackOptions.includeImageInCallback ? source : null);
+            sendBlank(callbackOptions.includeImage ? source : null);
         }
     }
 
@@ -85,7 +79,7 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
         }
 
         // Found an empty-marker
-        if (bc.contents.equalsIgnoreCase(this.mScanOptions.emptyMarkerContents)) {
+        if (bc.contents.equalsIgnoreCase(this.mScanOptions.emptyMarker)) {
             this.onBlank(source);
             mConsecutiveBlankCount = 0;
             return;
@@ -96,14 +90,14 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
             Log.v(TAG, "Found barcode: " + bc.contents);
             mConsecutiveBlankCount = 0;
             mConsecutiveErrorCount = 0;
-            sendBarcode(bc.contents, bc.points, callbackOptions.includeImageInCallback ? source : null);
+            sendBarcode(bc.contents, bc.points, callbackOptions.includeImage ? source : null);
         }
     }
 
 
     public void onError(final Exception error) {
         mConsecutiveErrorCount++;
-        if (mConsecutiveErrorCount >= this.mFilterOptions.errorDeglitchLevel) {
+        if (mConsecutiveErrorCount >= this.callbackOptions.errorReluctance) {
             sendError(error);
         }
     }
@@ -118,7 +112,7 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
     private String mLastReportedBarcode = "some random text 1234056g"; // null=> blank
 
     private void sendBarcode(String barcode, Point[] points, final Image source) {
-        switch (this.mFilterOptions.resultVerbosity)
+        switch (this.callbackOptions.resultVerbosity)
         {
             case None:
                 return;
@@ -156,7 +150,7 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
     }
 
     private void sendBlank(final Image source) {
-        switch (this.mFilterOptions.blankVerbosity)
+        switch (this.callbackOptions.blankVerbosity)
         {
             case None:
                 return;
@@ -181,7 +175,7 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
     }
 
     private void sendError(final Exception error) {
-        switch (this.mFilterOptions.errorVerbosity)
+        switch (this.callbackOptions.errorVerbosity)
         {
             case None:
                 return;

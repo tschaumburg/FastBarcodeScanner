@@ -1,24 +1,32 @@
 package dk.schaumburgit.fastbarcodescanner;
 
-import android.os.Handler;
-
 /**
  * Created by Thomas on 05-02-2018.
  */
 
 public class CallBackOptions
 {
-    public final boolean includeImageInCallback;
-    //public BarcodeDetectedListener listener;
+    public final boolean includeImage;
+
+    public enum ResultVerbosity { None, First, Changes, Allways}
+    public ResultVerbosity resultVerbosity = ResultVerbosity.Changes;
+
+    public int blankReluctance = 5;
+    public enum BlankVerbosity { None, First, Allways}
+    public BlankVerbosity blankVerbosity = BlankVerbosity.None;
+
+    public int errorReluctance = 0;
+    public enum ErrorVerbosity { None, First, Allways}
+    public ErrorVerbosity errorVerbosity = ErrorVerbosity.First;
+
     public CallBackOptions(boolean includeImageInCallback)
     {
-        this.includeImageInCallback = includeImageInCallback;
+        this.includeImage = includeImageInCallback;
 
     }
     public CallBackOptions()
     {
-        this.includeImageInCallback = false;
+        this.includeImage = false;
 
     }
-    //public Handler callbackHandler;
 }
