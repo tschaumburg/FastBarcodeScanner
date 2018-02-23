@@ -25,13 +25,8 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     testImplementation 'junit:junit:4.12'
     implementation 'com.google.zxing:core:3.2.1'
-//    classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.2'            // ADD THIS LINE
-//    classpath 'com.github.dcendents:android-maven-plugin:1.2'                 // AND THIS LINE
 }
 
-
 apply from: 'https://raw.githubusercontent.com/blundell/release-android-library/master/android-release-aar.gradle'
-
-// Individual files - slow, but works:
 
 

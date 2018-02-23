@@ -15,9 +15,9 @@ public class StillSequenceCamera2Options
         External
     }
 
-    public TextureView preview;
-    public Facing facing = Facing.Back;
-    public int minPixels = 1024*768;
+    public final TextureView preview;
+    public final Facing facing;
+    public final int minPixels;
     public StillSequenceCamera2Options(TextureView preview, int minPixels, Facing facing)
     {
         this.preview = preview;
@@ -26,6 +26,18 @@ public class StillSequenceCamera2Options
     }
     public StillSequenceCamera2Options(TextureView preview)
     {
-        this.preview = preview;
+        this(preview, 1024*768, Facing.Back);
+    }
+    public StillSequenceCamera2Options clone(int minPixels)
+    {
+        return new StillSequenceCamera2Options(this.preview, minPixels, this.facing);
+    }
+    public StillSequenceCamera2Options clone(TextureView preview)
+    {
+        return new StillSequenceCamera2Options(preview, this.minPixels, this.facing);
+    }
+    public StillSequenceCamera2Options clone(Facing facing)
+    {
+        return new StillSequenceCamera2Options(this.preview, this.minPixels, facing);
     }
 }

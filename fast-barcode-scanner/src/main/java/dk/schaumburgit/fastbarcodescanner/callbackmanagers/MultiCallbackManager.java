@@ -4,10 +4,8 @@ import android.media.Image;
 import android.os.Handler;
 import android.util.Log;
 
-import dk.schaumburgit.fastbarcodescanner.BarcodeInfo;
-import dk.schaumburgit.fastbarcodescanner.CallBackOptions;
-import dk.schaumburgit.fastbarcodescanner.FilterOptions;
-import dk.schaumburgit.fastbarcodescanner.MultipleBarcodesDetectedListener;
+import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeInfo;
+import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.MultipleBarcodesDetectedListener;
 import dk.schaumburgit.fastbarcodescanner.imageutils.ImageDecoder;
 import dk.schaumburgit.trackingbarcodescanner.Barcode;
 import dk.schaumburgit.trackingbarcodescanner.ScanOptions;
@@ -17,7 +15,7 @@ public class MultiCallbackManager //extends ErrorCallbackHandler
     /**
      * Tag for the {@link Log}.
      */
-    private static final String TAG = "FastBarcodeScanner";
+    private static final String TAG = "BarcodeScanner";
 
     private final ScanOptions mScanOptions;
     private final Handler callbackHandler;

@@ -10,11 +10,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
-import android.graphics.Rect;
-import android.graphics.YuvImage;
-import android.media.Image;
 import android.os.Bundle;
 import android.os.Vibrator;
 import android.support.annotation.NonNull;
@@ -29,22 +25,19 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-import java.io.ByteArrayOutputStream;
-
-import dk.schaumburgit.fastbarcodescanner.BarcodeDetectedListener;
-import dk.schaumburgit.fastbarcodescanner.BarcodeInfo;
-import dk.schaumburgit.fastbarcodescanner.FastBarcodeScanner;
+import dk.schaumburgit.fastbarcodescanner.BarcodeScannerFactory;
+import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner;
+import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeDetectedListener;
+import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeInfo;
 import dk.schaumburgit.fastbarcodescanner.imageutils.ImageDecoder;
-import dk.schaumburgit.fastbarcodescanner.imageutils.JpegUtils;
-import dk.schaumburgit.fastbarcodescanner.MultipleBarcodesDetectedListener;
-import dk.schaumburgit.fastbarcodescanner.fluent.ScannerBuilder;
+import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.MultipleBarcodesDetectedListener;
+import dk.schaumburgit.fastbarcodescanner.IBarcodeScannerBuilder;
 
 public class MainActivity extends AppCompatActivity
-        implements BarcodeDetectedListener, MultipleBarcodesDetectedListener//, FastBarcodeScanner.ScanningStateListener
+        implements BarcodeDetectedListener, MultipleBarcodesDetectedListener//, BarcodeScanner.ScanningStateListener
 {
     private static final String TAG = "FastBarcodeScannerDemo";
     private SurfaceView mSurfaceView;
@@ -116,18 +109,18 @@ public class MainActivity extends AppCompatActivity
         mScanner.StartScan(false, this, null);
     }
 
-    FastBarcodeScanner mScanner = null;
+    IBarcodeScanner mScanner = null;
     private void startScan() {
         requestCameraPermission();
 
         if (mScanner == null) {
             nCallbacks = 0;
-            //mScanner = new FastBarcodeScanner(this, (TextureView)null, 4*1024*768);
-            //mScanner = new FastBarcodeScanner(this, mSurfaceView);
+            //mScanner = new BarcodeScanner(this, (TextureView)null, 4*1024*768);
+            //mScanner = new BarcodeScanner(this, mSurfaceView);
             //mScanner.setScanningStateListener(this);
-            //mScanner = new FastBarcodeScanner(this, mTextureView, 4*1024*768);
+            //mScanner = new BarcodeScanner(this, mTextureView, 4*1024*768);
             /*mScanner =
-                    FastBarcodeScanner
+                    BarcodeScanner
                             .BackCamera(this, mTextureView) // (TextureView)null)
                             .Capture(4*1024*768)
                             .scanQR()
@@ -138,10 +131,10 @@ public class MainActivity extends AppCompatActivity
                             .Build();*/
 
             mScanner =
-                    ScannerBuilder
-                            .fromCamera(mTextureView)
+                    BarcodeScannerFactory
+                            .Builder(mTextureView)
                             .resolution(4*1024*768)
-                            .findQR()
+                            //.findQR()
                             .emptyDeglitch(3)
                             .errorDeglitch(3)
                             .track(1.0, 3)

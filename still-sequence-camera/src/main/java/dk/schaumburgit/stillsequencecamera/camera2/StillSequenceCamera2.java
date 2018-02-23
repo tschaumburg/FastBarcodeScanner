@@ -70,8 +70,8 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
         if (activity==null)
             throw new NullPointerException("StillSequenceCamera2 requires an Activity");
 
-        if (camOptions.minPixels < 1024*768)
-            camOptions.minPixels = 1024*768;
+        //if (camOptions.minPixels < 1024*768)
+        //    camOptions.minPixels = 1024*768;
 
         this.mActivity = activity;
 

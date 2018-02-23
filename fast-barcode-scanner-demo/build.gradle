@@ -1,8 +1,8 @@
 ext {
     DESCRIPTION = 'A'
-    PUBLISH_GROUP_ID = 'dk.schaumburgit.fast-barcode-scanner'
+    //PUBLISH_GROUP_ID = 'dk.schaumburgit.fast-barcode-scanner'
     PUBLISH_ARTIFACT_ID = 'fast-barcode-scanner-demo'
-    PUBLISH_VERSION = '1.1.0-alpha1'
+    //PUBLISH_VERSION = '1.1.0-alpha1'
 }
 
 android {
@@ -31,7 +31,7 @@ dependencies {
     implementation 'com.android.support:design:23.4.0'
     implementation 'com.android.support:support-v4:23.4.0'
     implementation 'com.android.support:support-v13:23.4.0'
-    implementation 'dk.schaumburgit.fast-barcode-scanner:fast-barcode-scanner:1.1.0-alpha1'
+    implementation 'dk.schaumburgit.fast-barcode-scanner:fast-barcode-scanner:' + PUBLISH_VERSION
     //implementation project(':fast-barcode-scanner')
 }
 

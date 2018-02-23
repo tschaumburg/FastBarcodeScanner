@@ -1,8 +1,6 @@
 ext {
     DESCRIPTION = 'A library allowing apps to take fast sequences of still images without any UI preview'
-    PUBLISH_GROUP_ID = 'dk.schaumburgit.fast-barcode-scanner'
     PUBLISH_ARTIFACT_ID = 'still-sequence-camera'
-    PUBLISH_VERSION = '1.1.0-alpha1'
 }
 
 android {
@@ -23,10 +21,8 @@ android {
     }
 }
 
-
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    //compile 'org.jdeferred:jdeferred-core:1.2.4'
     testImplementation 'junit:junit:4.12'
 }
 

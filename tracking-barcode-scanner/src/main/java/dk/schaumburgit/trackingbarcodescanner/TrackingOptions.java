@@ -12,6 +12,26 @@ package dk.schaumburgit.trackingbarcodescanner;
  */
 public class TrackingOptions
 {
-    public double trackingMargin = 1.0;
-    public int trackingPatience = 5;
+    public final double trackingMargin;
+    public final int trackingPatience;
+    public TrackingOptions(double margin, int patience)
+    {
+        this.trackingMargin = margin;
+        this.trackingPatience = patience;
+    }
+    public TrackingOptions()
+    {
+        this.trackingMargin = 1.0;
+        this.trackingPatience = 5;
+    }
+    public TrackingOptions clone(double margin, int patience)
+    {
+        if (margin < 0)
+            margin = this.trackingMargin;
+
+        if (patience < 0)
+            patience = this.trackingPatience;
+
+        return new TrackingOptions(margin, patience);
+    }
 }

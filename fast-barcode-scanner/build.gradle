@@ -1,8 +1,6 @@
 ext {
     DESCRIPTION = 'Fast barcode scanning library for Android apps.'
-    PUBLISH_GROUP_ID = 'dk.schaumburgit.fast-barcode-scanner'
     PUBLISH_ARTIFACT_ID = 'fast-barcode-scanner'
-    PUBLISH_VERSION = '1.1.0-alpha1'
 }
 
 android {
@@ -27,8 +25,8 @@ dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation 'com.google.zxing:core:3.2.1'
     testImplementation 'junit:junit:4.12'
-    implementation 'dk.schaumburgit.fast-barcode-scanner:still-sequence-camera:1.1.0-alpha1'
-    implementation 'dk.schaumburgit.fast-barcode-scanner:tracking-barcode-scanner:1.1.0-alpha1'
+    implementation 'dk.schaumburgit.fast-barcode-scanner:still-sequence-camera:' + PUBLISH_VERSION
+    implementation 'dk.schaumburgit.fast-barcode-scanner:tracking-barcode-scanner:' + PUBLISH_VERSION
     //implementation project(':still-sequence-camera')
     //implementation project(':tracking-barcode-scanner')
 }

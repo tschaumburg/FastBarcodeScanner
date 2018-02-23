@@ -6,6 +6,16 @@ package dk.schaumburgit.trackingbarcodescanner;
 
 public class ScanOptions
 {
-    public String emptyMarker = null;
-    public String beginsWith = null;
+    public final String emptyMarker;
+    public final String beginsWith;
+    public ScanOptions()
+    {
+        this.emptyMarker = null;
+        this.beginsWith = null;
+    }
+    public ScanOptions(String emptyMarker, String beginsWith)
+    {
+        this.emptyMarker = emptyMarker;
+        this.beginsWith = beginsWith;
+    }
 }

@@ -46,9 +46,7 @@ public class StillSequenceCamera implements IStillSequenceCamera {
         mPreview = camOptions.preview;
         mState = CLOSED;
 
-        if (camOptions.minPixels < 1024*768)
-            camOptions.minPixels = 1024*768;
-        this.mMinPixels = camOptions.minPixels;
+        this.mMinPixels = (camOptions.minPixels < 1024*768) ? (1024*768) : camOptions.minPixels;
 
         // Open a camera:
         int chosenCameraId = -1;

@@ -1,3 +1,4 @@
+//project.version = '1.1.0-alpha3'
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 // To release, run
@@ -6,7 +7,7 @@
 //    https://bintray.com/profile/edit
 // under "API Key"
 ext {
-    VERSION_NAME = '1.0.7'
+    VERSION_NAME = '1.1.0.alpha7'
 }
 
 buildscript {
@@ -44,15 +45,9 @@ subprojects {
         dependencies {
             classpath 'com.android.tools.build:gradle:3.0.1'
             classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7.3'
-            //classpath 'com.novoda:bintray-release:0.8.0'
-
-            // NOTE: Do not place your application dependencies here; they belong
-            // in the individual module build.gradle files
         }
     }
     ext {
-        //VERSION_NAME = 'maventest'
-
         MODULE_NAME = project.name
         ARTIFACT_ID = project.name
         DESCRIPTION = ' '
@@ -67,8 +62,8 @@ subprojects {
 
         IS_UPLOADING = project.getGradle().startParameter.taskNames.any{it.contains('bintrayUpload')}
 
-        PUBLISH_GROUP_ID ='fast-barcode-scanner'
-        PUBLISH_VERSION = '1.1.0-alpha2'
+        PUBLISH_GROUP_ID ='dk.schaumburgit.fast-barcode-scanner'
+        PUBLISH_VERSION = '2.0.0.alpha1'
     }
 
     if (project.name in ['fast-barcode-scanner-demo']) {
@@ -111,19 +106,18 @@ subprojects {
     bintray {
         user = project.hasProperty('bintrayUser') ? project.property('bintrayUser') : System.getenv('BINTRAY_USER')
         key = project.hasProperty('bintrayApiKey') ? project.property('bintrayApiKey') : System.getenv('BINTRAY_API_KEY')
-        //filesSpec {
-        //    from 'build/release/' + PUBLISH_VERSION + '/' + PUBLISH_GROUP_ID + '/' + PUBLISH_ARTIFACT_ID
-        //    into 'dk/schaumburgit/' + PUBLISH_GROUP_ID + '/' + PUBLISH_ARTIFACT_ID // '.'
-        //}
         publications = ['Production']
-        //configurations = ['archives']
-        //override = true
+        override = true
         pkg {
-            repo = 'maven'
+            repo = 'maven' //'maven'
             name = PUBLISH_GROUP_ID
+            licenses = ['Apache-2.0']
+            vcsUrl = GIT_URL
+            description = 'abc'
             //       publish = true
             version {
                 name = PUBLISH_VERSION
+                desc = 'def'
             }
         }
     }

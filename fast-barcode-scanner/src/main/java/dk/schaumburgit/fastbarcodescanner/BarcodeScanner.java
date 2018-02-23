@@ -18,24 +18,20 @@ package dk.schaumburgit.fastbarcodescanner;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.graphics.ImageFormat;
-import android.graphics.Point;
 import android.media.Image;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
 import android.view.SurfaceView;
-import android.view.TextureView;
 
-import com.google.zxing.BarcodeFormat;
 import com.google.zxing.BinaryBitmap;
 
 import java.security.InvalidParameterException;
-import java.util.EnumSet;
 import java.util.Map;
 
+import dk.schaumburgit.fastbarcodescanner.callbackmanagers.CallBackOptions;
 import dk.schaumburgit.fastbarcodescanner.callbackmanagers.MultiCallbackManager;
 import dk.schaumburgit.fastbarcodescanner.callbackmanagers.SingleCallbackManager;
-import dk.schaumburgit.fastbarcodescanner.imageutils.ImageDecoder;
 import dk.schaumburgit.stillsequencecamera.IStillSequenceCamera;
 import dk.schaumburgit.stillsequencecamera.camera.StillSequenceCamera;
 import dk.schaumburgit.stillsequencecamera.camera.StillSequenceCameraOptions;
@@ -47,19 +43,19 @@ import dk.schaumburgit.trackingbarcodescanner.TrackingBarcodeScanner;
 import dk.schaumburgit.trackingbarcodescanner.TrackingOptions;
 
 /**
- * The FastBarcodeScanner captures images from your front-facing camera at the fastest
+ * The BarcodeScanner captures images from your front-facing camera at the fastest
  * possible rate, scans them for barcodes and reports any changes to the caller
  * via a listener callback.
  *
  * The image capture is done unobtrusively without any visible UI, using a background thread.
  *
  * For newer Android versions (Lollipop and later), the new, faster Camera2 API is supported.
- * For older versions, FastBarcodeScanner falls back to using the older, slower camera API.
+ * For older versions, BarcodeScanner falls back to using the older, slower camera API.
  *
- * When the Camera2 API is available, the FastBarcodeScanner can be created with a TextureView
+ * When the Camera2 API is available, the BarcodeScanner can be created with a TextureView
  * if on-screen preview is desired, or without for headless operation.
  *
- * For older Android versions, the FastBarcodeScanner *must* be created with a SurfaceView,
+ * For older Android versions, the BarcodeScanner *must* be created with a SurfaceView,
  * and the SurfaceView *must* be visible on-screen. Setting the SurfaceView to 1x1 pixel
  * will however make it effectively invisible.
  *
@@ -67,11 +63,12 @@ import dk.schaumburgit.trackingbarcodescanner.TrackingOptions;
  * to the current Activity (used for accessing e.g. the camera, and other system resources).
  *
  */
-public class FastBarcodeScanner {
+class BarcodeScanner implements IBarcodeScanner {
+
     /**
      * Tag for the {@link Log}.
      */
-    private static final String TAG = "FastBarcodeScanner";
+    private static final String TAG = "BarcodeScanner";
 
     private final Activity mActivity;
     private HandlerThread mProcessingThread;
@@ -84,7 +81,7 @@ public class FastBarcodeScanner {
     private final CallBackOptions mCallBackOptions;
 
     @TargetApi(21)
-    public FastBarcodeScanner(
+    BarcodeScanner(
             Activity activity,
             StillSequenceCamera2Options cameraOptions,
             ScanOptions scanOptions,
@@ -126,7 +123,7 @@ public class FastBarcodeScanner {
         return result;
     }
 
-    public FastBarcodeScanner(
+    /*BarcodeScanner(
             Activity activity,
             TextureView textureView,
             int resolution
@@ -138,13 +135,13 @@ public class FastBarcodeScanner {
                 new TrackingOptions(),
                 new CallBackOptions()
         );
-    }
+    }*/
 
     /**
-     * Creates a FastBarcodeScanner using the deprecated Camera API supported
+     * Creates a BarcodeScanner using the deprecated Camera API supported
      * on Android versions prior to Lollipop (API level lower than 21).
      * <p>
-     * The created FastBarcodeScanner will display preview output in the supplied
+     * The created BarcodeScanner will display preview output in the supplied
      * SurfaceView. This parameter *must* be non-null, and the referenced SurfaceView
      * *must* be displayed on-screen, with a minimum size of 1x1 pixels. This is a
      * non-negotiable requirement from the camera API (upgrade to API level 21 for
@@ -152,11 +149,11 @@ public class FastBarcodeScanner {
      *
      * @param activity Non-null
      * @deprecated This constructor uses the deprecated Camera API. We recommend using
-     * one of the other FastBarcodeScanner constructors (using the new
+     * one of the other BarcodeScanner constructors (using the new
      * {@link android.hardware.camera2} API) for new applications.
      */
     @Deprecated
-    public FastBarcodeScanner(
+    BarcodeScanner(
             Activity activity,
             StillSequenceCameraOptions cameraOptions,
             ScanOptions scanOptions,
@@ -187,10 +184,10 @@ public class FastBarcodeScanner {
     }
 
     /**
-     * Creates a FastBarcodeScanner using the deprecated Camera API supported
+     * Creates a BarcodeScanner using the deprecated Camera API supported
      * on Android versions prior to Lollipop (API level lower than 21).
      * <p>
-     * The created FastBarcodeScanner will display preview output in the supplied
+     * The created BarcodeScanner will display preview output in the supplied
      * SurfaceView. This parameter *must* be non-null, and the referenced SurfaceView
      * *must* be displayed on-screen, with a minimum size of 1x1 pixels. This is a
      * non-negotiable requirement from the camera API (upgrade to API level 21 for
@@ -201,11 +198,11 @@ public class FastBarcodeScanner {
      * @param resolution  The requested minimum resolution of the photos
      *                    taken during scanning.
      * @deprecated This constructor uses the deprecated Camera API. We recommend using
-     * one of the other FastBarcodeScanner constructors (using the new
+     * one of the other BarcodeScanner constructors (using the new
      * {@link android.hardware.camera2} API) for new applications.
      */
     @Deprecated
-    public FastBarcodeScanner(
+    BarcodeScanner(
             Activity activity,
             SurfaceView surfaceView,
             int resolution
@@ -213,34 +210,7 @@ public class FastBarcodeScanner {
         this(activity, new StillSequenceCameraOptions(surfaceView, resolution), new ScanOptions(), new TrackingOptions(), new CallBackOptions());
     }
 
-    /**
-     * Starts processing anything the back-camera sees, looking for any single barcode
-     * in the captured photos. If several barcodes are in view, only the first one found
-     * will be detected (consider using the less efficient #startMultiScan if you want
-     * all barcodes)
-     * <p>
-     * The scanning is performed on a background thread. The supplied listener will
-     * be called using the supplied handler whenever
-     * there's a *change* in the barcode seen (i.e. if 200 consecutive images contain
-     * the same barcode, only the first will generate a callback).
-     * <p>
-     * "No barcode" is signalled with a null value via the callback.
-     * <p>
-     * Example: After StartScan is called, the first 20 images contain no barcode, the
-     * next 200 have barcode A, the next 20 have nothing. This will generate the
-     * following callbacks:
-     * <p>
-     * Frame#1:   onBarcodeAvailable(null)
-     * Frame#21:  onBarcodeAvailable("A")
-     * Frame#221: onBarcodeAvailable(null)
-     *
-     * @param includeImagesInCallback Whether the callbacks to the listener will contain the
-     *                                images that the callback was based on.
-     * @param listener                A reference to the listener receiving the above mentioned
-     *                                callbacks
-     * @param callbackHandler         Identifies the thread that the callbacks will be made on.
-     *                                Null means "use the thread that called StartScan()".
-     */
+    @Override
     public void StartScan(
             final boolean includeImagesInCallback,
             final BarcodeDetectedListener listener,
@@ -250,11 +220,11 @@ public class FastBarcodeScanner {
             callbackHandler = new Handler();
         final Handler finalHandler = callbackHandler;
 
-        mProcessingThread = new HandlerThread("FastBarcodeScanner processing thread");
+        mProcessingThread = new HandlerThread("BarcodeScanner processing thread");
         mProcessingThread.start();
         mProcessingHandler = new Handler(mProcessingThread.getLooper());
 
-        final SingleCallbackManager callbackManager = new SingleCallbackManager(this.mScanOptions, new CallBackOptions(includeImagesInCallback), listener, finalHandler);
+        final SingleCallbackManager callbackManager = new SingleCallbackManager(this.mScanOptions, this.mCallBackOptions, listener, finalHandler);
         mImageSource.start(
                 new IStillSequenceCamera.OnImageAvailableListener() {
 
@@ -283,29 +253,12 @@ public class FastBarcodeScanner {
         );
     }
 
-    /**
-     * Similar to #StartScan, except that it scans all barcodes in view, not just the first
-     * one found.
-     *
-     * @param listener        A reference to the listener receiving the above mentioned callbacks
-     * @param callbackHandler Identifies the thread that the callbacks will be made on.
-     *                        Null means "use the thread that called StartScan()".
-     */
+    @Override
     public void StartMultiScan(final MultipleBarcodesDetectedListener listener, Handler callbackHandler) {
         StartMultiScan(false, 1, listener, callbackHandler);
     }
 
-    /**
-     * Similar to #StartScan, except that it scans all barcodes in view, not just the first
-     * one found.
-     *
-     * @param includeImagesInCallback Whether the callbacks to the listener will contain the
-     *                                images that the callback was based on.
-     * @param minNoOfBarcodes
-     * @param listener                A reference to the listener receiving the above mentioned callbacks
-     * @param callbackHandler         Identifies the thread that the callbacks will be made on.
-     *                                Null means "use the thread that called StartScan()".
-     */
+    @Override
     public void StartMultiScan(
             final boolean includeImagesInCallback,
             final int minNoOfBarcodes,
@@ -316,11 +269,11 @@ public class FastBarcodeScanner {
             callbackHandler = new Handler();
         final Handler finalHandler = callbackHandler;
 
-        mProcessingThread = new HandlerThread("FastBarcodeScanner processing thread");
+        mProcessingThread = new HandlerThread("BarcodeScanner processing thread");
         mProcessingThread.start();
         mProcessingHandler = new Handler(mProcessingThread.getLooper());
 
-        final MultiCallbackManager callbackManager = new MultiCallbackManager(this.mScanOptions, new CallBackOptions(includeImagesInCallback), listener, finalHandler);
+        final MultiCallbackManager callbackManager = new MultiCallbackManager(this.mScanOptions, this.mCallBackOptions, listener, finalHandler);
         mImageSource.start(
                 new IStillSequenceCamera.OnImageAvailableListener() {
 
@@ -351,21 +304,17 @@ public class FastBarcodeScanner {
 
     private boolean mPaused = false;
 
+    @Override
     public void Pause() {
         mPaused = true;
     }
 
+    @Override
     public void Resume() {
         mPaused = false;
     }
 
-    /**
-     * Stops the scanning process started by StartScan() or StartMultiScan() and frees any shared system resources
-     * (e.g. the camera). StartScan() or StartMultiScan() can always be called to restart.
-     * <p>
-     * StopScan() and StartScan()/StartMultiScan() are thus well suited for use from the onPause() and onResume()
-     * handlers of a calling application.
-     */
+    @Override
     public void StopScan() {
         mImageSource.stop();
 
@@ -381,9 +330,7 @@ public class FastBarcodeScanner {
         }
     }
 
-    /**
-     * Disposes irrevocably of all resources. This instance cannot be used after close() is called.
-     */
+    @Override
     public void close() {
         this.mImageSource.close();
     }
@@ -467,10 +414,12 @@ public class FastBarcodeScanner {
     }
 
 
+    @Override
     public boolean isLockFocus() {
         return mImageSource.isLockFocus();
     }
 
+    @Override
     public void setLockFocus(boolean lockFocus) {
         mImageSource.setLockFocus(lockFocus);
     }

@@ -8,10 +8,8 @@ import android.util.Log;
 
 import java.util.Objects;
 
-import dk.schaumburgit.fastbarcodescanner.BarcodeDetectedListener;
-import dk.schaumburgit.fastbarcodescanner.BarcodeInfo;
-import dk.schaumburgit.fastbarcodescanner.CallBackOptions;
-import dk.schaumburgit.fastbarcodescanner.FilterOptions;
+import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeDetectedListener;
+import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeInfo;
 import dk.schaumburgit.fastbarcodescanner.imageutils.ImageDecoder;
 import dk.schaumburgit.trackingbarcodescanner.Barcode;
 import dk.schaumburgit.trackingbarcodescanner.ScanOptions;
@@ -21,7 +19,7 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
     /**
      * Tag for the {@link Log}.
      */
-    private static final String TAG = "FastBarcodeScanner";
+    private static final String TAG = "BarcodeScanner";
 
     private final ScanOptions mScanOptions;
     private final BarcodeDetectedListener listener;
@@ -153,6 +151,7 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
         switch (this.callbackOptions.blankVerbosity)
         {
             case None:
+                mLatestEvent = ELastEvent.Blank;
                 return;
             case First:
                 if (this.mLatestEvent == ELastEvent.Blank)
