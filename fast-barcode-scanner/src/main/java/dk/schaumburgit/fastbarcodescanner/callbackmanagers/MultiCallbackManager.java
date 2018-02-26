@@ -1,12 +1,10 @@
 package dk.schaumburgit.fastbarcodescanner.callbackmanagers;
-import android.graphics.ImageFormat;
 import android.media.Image;
 import android.os.Handler;
 import android.util.Log;
 
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeInfo;
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.MultipleBarcodesDetectedListener;
-import dk.schaumburgit.fastbarcodescanner.imageutils.ImageDecoder;
 import dk.schaumburgit.trackingbarcodescanner.Barcode;
 import dk.schaumburgit.trackingbarcodescanner.ScanOptions;
 
@@ -53,13 +51,13 @@ public class MultiCallbackManager //extends ErrorCallbackHandler
     private int mNoBarcodeCount = 0;
 
     public void onMultipleBarcodesFound(Barcode[] bcs, Image source) {
-        if (bcs == null) {
+        if (bcs == null || bcs.length == 0) {
             Log.v(TAG, "Found 0 barcodes");
             mNoBarcodeCount++;
             //if (mLastReportedMultiBarcode != null && mNoBarcodeCount >= NO_BARCODE_IGNORE_LIMIT) {
-            if (mNoBarcodeCount >= this.callbackOptions.blankReluctance) {
+            if (mNoBarcodeCount >= this.callbackOptions.debounceBlanks) {
                 //mLastReportedMultiBarcode = null;
-                _onMultipleBarcodes(mLastReportedMultiBarcode, callbackOptions.includeImage ? source : null, listener, callbackHandler);
+                _onBlank(listener, callbackHandler);
             }
         } else {
             Log.v(TAG, "Found " + bcs.length + " barcodes");
@@ -74,12 +72,12 @@ public class MultiCallbackManager //extends ErrorCallbackHandler
     protected int mConsecutiveErrorCount = 0;
     public void onError(final Exception error) {
         mConsecutiveErrorCount++;
-        if (mConsecutiveErrorCount >= this.callbackOptions.errorReluctance) {
+        if (mConsecutiveErrorCount >= this.callbackOptions.debounceErrors) {
             callbackHandler.post(
                     new Runnable() {
                         @Override
                         public void run() {
-                            listener.onError(error);
+                            listener.OnError(error);
                         }
                     }
             );
@@ -109,15 +107,24 @@ public class MultiCallbackManager //extends ErrorCallbackHandler
 
     private void _onMultipleBarcodes(final Barcode[] barcodes, final Image source, final MultipleBarcodesDetectedListener listener, Handler callbackHandler) {
         if (listener != null) {
-            final byte[] serialized = (source == null) ? null : ImageDecoder.Serialize(source);
-            final int width = (source == null) ? 0 : source.getWidth();
-            final int height = (source == null) ? 0 : source.getHeight();
-            final int format = (source == null) ? ImageFormat.UNKNOWN : source.getFormat();
             callbackHandler.post(
                     new Runnable() {
                         @Override
                         public void run() {
-                            listener.onMultipleBarcodeAvailable(_convert(barcodes), serialized, format, width, height);
+                            listener.OnHits(_convert(barcodes), source);
+                        }
+                    }
+            );
+        }
+    }
+
+    private void _onBlank(final MultipleBarcodesDetectedListener listener, Handler callbackHandler) {
+        if (listener != null) {
+            callbackHandler.post(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            listener.OnBlank();
                         }
                     }
             );

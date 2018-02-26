@@ -25,10 +25,10 @@ dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation 'com.google.zxing:core:3.2.1'
     testImplementation 'junit:junit:4.12'
-    implementation 'dk.schaumburgit.fast-barcode-scanner:still-sequence-camera:' + PUBLISH_VERSION
-    implementation 'dk.schaumburgit.fast-barcode-scanner:tracking-barcode-scanner:' + PUBLISH_VERSION
-    //implementation project(':still-sequence-camera')
-    //implementation project(':tracking-barcode-scanner')
+    //implementation 'dk.schaumburgit.fast-barcode-scanner:still-sequence-camera:' + PUBLISH_VERSION
+    //implementation 'dk.schaumburgit.fast-barcode-scanner:tracking-barcode-scanner:' + PUBLISH_VERSION
+    implementation project(':still-sequence-camera')
+    implementation project(':tracking-barcode-scanner')
 }
 
 apply from: 'https://raw.githubusercontent.com/blundell/release-android-library/master/android-release-aar.gradle'

@@ -19,13 +19,15 @@ public interface IBarcodeScannerBuilder
     //IBarcodeScannerBuilder findQR();
 
     IBarcodeScannerBuilder emptyMarker(String emptyMarkerContents);
-    IBarcodeScannerBuilder emptyDeglitch(int nSamples);
-    IBarcodeScannerBuilder emptyVerbosity(CallBackOptions.BlankVerbosity verbosity);
 
-    IBarcodeScannerBuilder errorDeglitch(int nSamples);
-    IBarcodeScannerBuilder errorVerbosity(CallBackOptions.ErrorVerbosity verbosity);
+    IBarcodeScannerBuilder debounceBlanks(int nSamples);
+    IBarcodeScannerBuilder debounceErrors(int nSamples);
 
-    IBarcodeScannerBuilder resultVerbosity(CallBackOptions.ResultVerbosity verbosity);
+    IBarcodeScannerBuilder conflateHits(EventConflation hitConflation);
+    IBarcodeScannerBuilder conflateBlanks(EventConflation blankConflation);
+    IBarcodeScannerBuilder conflateErrors(EventConflation errorConflation);
+
+
 
     IBarcodeScannerBuilder beginsWith(String prefix);
     IBarcodeScannerBuilder track(

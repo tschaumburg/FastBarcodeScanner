@@ -211,8 +211,12 @@ class BarcodeScanner implements IBarcodeScanner {
     }
 
     @Override
+    public void StartScan(final BarcodeDetectedListener listener) {
+        StartScan(listener, null);
+    }
+
+    @Override
     public void StartScan(
-            final boolean includeImagesInCallback,
             final BarcodeDetectedListener listener,
             Handler callbackHandler
     ) {
@@ -331,7 +335,7 @@ class BarcodeScanner implements IBarcodeScanner {
     }
 
     @Override
-    public void close() {
+    public void Close() {
         this.mImageSource.close();
     }
 

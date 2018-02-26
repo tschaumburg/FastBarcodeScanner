@@ -11,6 +11,7 @@ import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
+import android.media.Image;
 import android.os.Bundle;
 import android.os.Vibrator;
 import android.support.annotation.NonNull;
@@ -34,7 +35,6 @@ import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeDetectedListene
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeInfo;
 import dk.schaumburgit.fastbarcodescanner.imageutils.ImageDecoder;
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.MultipleBarcodesDetectedListener;
-import dk.schaumburgit.fastbarcodescanner.IBarcodeScannerBuilder;
 
 public class MainActivity extends AppCompatActivity
         implements BarcodeDetectedListener, MultipleBarcodesDetectedListener//, BarcodeScanner.ScanningStateListener
@@ -81,6 +81,12 @@ public class MainActivity extends AppCompatActivity
     }
 
     @Override
+    protected void onDestroy() {
+        mScanner.Close();
+        super.onDestroy();
+    }
+
+    @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_main, menu);
@@ -106,7 +112,7 @@ public class MainActivity extends AppCompatActivity
         // like pause:
         mScanner.StopScan();
         // like resume:
-        mScanner.StartScan(false, this, null);
+        mScanner.StartScan(this, null);
     }
 
     IBarcodeScanner mScanner = null;
@@ -128,15 +134,15 @@ public class MainActivity extends AppCompatActivity
                             .enableTracking(1.0, 3, "")
                             .deglitch(3)
                             //.verbose()
-                            .Build();*/
+                            .build();*/
 
             mScanner =
                     BarcodeScannerFactory
-                            .Builder(mTextureView)
+                            .builder(mTextureView)
                             .resolution(4*1024*768)
                             //.findQR()
-                            .emptyDeglitch(3)
-                            .errorDeglitch(3)
+                            .debounceBlanks(3)
+                            .debounceErrors(3)
                             .track(1.0, 3)
                             .build(this);
 
@@ -150,7 +156,7 @@ public class MainActivity extends AppCompatActivity
         mScanner.setLockFocus(true);
         //mScanner.setIncludeImagesInCallback(true);
         //mScanner.StartMultiScan(true, 4, "pfx:scorecard:", this, null);
-        mScanner.StartScan(false, this, null);
+        mScanner.StartScan(this, null);
         stopButton.setEnabled(true);
         pauseResumeButton.setEnabled(true);
     }
@@ -180,7 +186,7 @@ public class MainActivity extends AppCompatActivity
     }
 
     @Override
-    public void onMultipleBarcodeAvailable(BarcodeInfo[] barcodes, byte[] image, int format, int width, int height) {
+    public void OnHits(BarcodeInfo[] barcodes, Image image) {
         String barcodesText = null;
 
         if (barcodes != null && barcodes.length > 0)
@@ -197,8 +203,8 @@ public class MainActivity extends AppCompatActivity
         final TextView resView = (TextView) findViewById(R.id.textView2);
 
         Log.v(TAG, "Start decode");
-        final Bitmap bm = (image == null) ? null : ImageDecoder.ToBitmap(image, format, width, height);
-        Log.v(TAG, "End decode " + ((image == null) ? 0 : image.length));
+        final Bitmap bm = image2bitmap(image);
+        Log.v(TAG, "End decode");
 
         this.runOnUiThread(
                 new Runnable() {
@@ -220,9 +226,23 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    private Bitmap image2bitmap(Image source)
+    {
+        if (source==null)
+            return null;
+
+        final byte[] serialized = ImageDecoder.Serialize(source);
+        final int width = source.getWidth();
+        final int height = source.getHeight();
+        final int format = source.getFormat();
+
+        return ImageDecoder.ToBitmap(serialized, format, width, height);
+    }
+
     private int nCallbacks = 9;
     @Override
-    public void onSingleBarcodeAvailable(BarcodeInfo barcodeInfo, byte[] image, int format, int width, int height) {
+    public void OnHit(BarcodeInfo barcodeInfo, Image image)
+    {
         nCallbacks++;
         String barcode = null;
         if (barcodeInfo != null)
@@ -233,8 +253,8 @@ public class MainActivity extends AppCompatActivity
         final TextView resView = (TextView) findViewById(R.id.textView2);
 
         Log.v(TAG, "Start decode");
-        final Bitmap bm = (image == null) ? null : ImageDecoder.ToBitmap(image, format, width, height);
-        Log.v(TAG, "End decode " + ((image == null) ? 0 : image.length));
+        final Bitmap bm = image2bitmap(image);
+        Log.v(TAG, "End decode");
 
         this.runOnUiThread(
                 new Runnable() {
@@ -254,6 +274,11 @@ public class MainActivity extends AppCompatActivity
                 v.vibrate(100);
             }
         }
+    }
+
+    @Override
+    public void OnBlank() {
+
     }
 
     private String formatFormat(int imageFormat)
@@ -303,7 +328,7 @@ public class MainActivity extends AppCompatActivity
     }
 
     @Override
-    public void onError(Exception error) {
+    public void OnError(Exception error) {
 
     }
 

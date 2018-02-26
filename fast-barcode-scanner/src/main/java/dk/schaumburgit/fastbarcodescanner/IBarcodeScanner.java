@@ -1,6 +1,7 @@
 package dk.schaumburgit.fastbarcodescanner;
 
 import android.graphics.Point;
+import android.media.Image;
 import android.os.Handler;
 
 /**
@@ -29,17 +30,24 @@ public interface IBarcodeScanner {
      * Frame#21:  onBarcodeAvailable("A")
      * Frame#221: onBarcodeAvailable(null)
      *
-     * @param includeImagesInCallback Whether the callbacks to the listener will contain the
-     *                                images that the callback was based on.
      * @param listener                A reference to the listener receiving the above mentioned
      *                                callbacks
      * @param callbackHandler         Identifies the thread that the callbacks will be made on.
      *                                Null means "use the thread that called StartScan()".
      */
     void StartScan(
-            boolean includeImagesInCallback,
             BarcodeDetectedListener listener,
             Handler callbackHandler
+    );
+
+    /**
+     * Shorthand for StartScan(listener, null)
+     *
+     * @param listener                A reference to the listener receiving the
+     *                                callbacks
+     */
+    void StartScan(
+            BarcodeDetectedListener listener
     );
 
     /**
@@ -86,7 +94,7 @@ public interface IBarcodeScanner {
     /**
      * Disposes irrevocably of all resources. This instance cannot be used after close() is called.
      */
-    void close();
+    void Close();
 
     boolean isLockFocus();
 
@@ -107,22 +115,26 @@ public interface IBarcodeScanner {
      */
     public interface BarcodeDetectedListener //extends ErrorDetectedListener
     {
-        void onSingleBarcodeAvailable(BarcodeInfo barcode, byte[] image, int format, int width, int height);
-        void onError(Exception error);
+        void OnHit(BarcodeInfo barcode, Image image);
+        void OnBlank();
+        void OnError(Exception error);
     }
 
     public interface MultipleBarcodesDetectedListener
     {
-        void onMultipleBarcodeAvailable(BarcodeInfo[] barcodes, byte[] image, int format, int width, int height);
-        void onError(Exception error);
+        void OnHits(BarcodeInfo[] barcodes, Image image);
+        void OnBlank();
+        void OnError(Exception error);
     }
 
     public static class BarcodeInfo {
         public final String barcode;
+        //public final int format;
         public final Point[] points;
 
         public BarcodeInfo(String barcode, Point[] points) {
             this.barcode = barcode;
+            //this.format = format;
             this.points = points;
         }
     }

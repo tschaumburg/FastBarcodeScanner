@@ -1,6 +1,5 @@
 package dk.schaumburgit.fastbarcodescanner.callbackmanagers;
 
-import android.graphics.ImageFormat;
 import android.graphics.Point;
 import android.media.Image;
 import android.os.Handler;
@@ -10,7 +9,6 @@ import java.util.Objects;
 
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeDetectedListener;
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeInfo;
-import dk.schaumburgit.fastbarcodescanner.imageutils.ImageDecoder;
 import dk.schaumburgit.trackingbarcodescanner.Barcode;
 import dk.schaumburgit.trackingbarcodescanner.ScanOptions;
 
@@ -58,13 +56,17 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
     private int mConsecutiveErrorCount = 0;
 
     public void onBlank(Image source) {
-        //this.onBarcode(null, source);
+        if (this.mScanOptions.emptyMarker != null) {
+            this.onError(new Exception("False blank detected"));
+            return;
+        }
+
         Log.v(TAG, "Found barcode: " + null);
+
+        // Debounce:
         mConsecutiveBlankCount++;
         mConsecutiveErrorCount = 0;
-        //if (mLastReportedBarcode != null && mNoBarcodeCount >= this.mFilterOptions.blankReluctance) {
-        if (mConsecutiveBlankCount >= this.callbackOptions.blankReluctance) {
-            //mLastReportedBarcode = null;
+        if (mConsecutiveBlankCount >= this.callbackOptions.debounceBlanks) {
             sendBlank(callbackOptions.includeImage ? source : null);
         }
     }
@@ -76,26 +78,30 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
             return;
         }
 
-        // Found an empty-marker
-        if (bc.contents.equalsIgnoreCase(this.mScanOptions.emptyMarker)) {
-            this.onBlank(source);
-            mConsecutiveBlankCount = 0;
-            return;
+        if (this.mScanOptions.emptyMarker != null) {
+            // If this is an empty-marker, it should be processed as a blank,
+            // but without any debouncing:
+            if (bc.contents.equalsIgnoreCase(this.mScanOptions.emptyMarker)) {
+                mConsecutiveBlankCount = 0;
+                mConsecutiveErrorCount = 0;
+                sendBlank(callbackOptions.includeImage ? source : null);
+                return;
+            }
         }
 
-        // Found a proper barcode
-        {
-            Log.v(TAG, "Found barcode: " + bc.contents);
-            mConsecutiveBlankCount = 0;
-            mConsecutiveErrorCount = 0;
-            sendBarcode(bc.contents, bc.points, callbackOptions.includeImage ? source : null);
-        }
+        Log.v(TAG, "Found barcode: " + bc.contents);
+
+        // Debounce:
+        mConsecutiveBlankCount = 0;
+        mConsecutiveErrorCount = 0;
+        sendBarcode(bc.contents, bc.points, callbackOptions.includeImage ? source : null);
     }
 
 
     public void onError(final Exception error) {
+        // Debounce:
         mConsecutiveErrorCount++;
-        if (mConsecutiveErrorCount >= this.callbackOptions.errorReluctance) {
+        if (mConsecutiveErrorCount >= this.callbackOptions.debounceErrors) {
             sendError(error);
         }
     }
@@ -109,8 +115,10 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
 
     private String mLastReportedBarcode = "some random text 1234056g"; // null=> blank
 
-    private void sendBarcode(String barcode, Point[] points, final Image source) {
-        switch (this.callbackOptions.resultVerbosity)
+    private void sendBarcode(String barcode, Point[] points, final Image source)
+    {
+        // Conflation:
+        switch (this.callbackOptions.conflateHits)
         {
             case None:
                 return;
@@ -125,20 +133,16 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
                         return;
                 }
                 break;
-            case Allways:
+            case All:
                 break;
         }
 
         final BarcodeInfo bc = new BarcodeInfo(barcode, points);
-        final byte[] serialized = (source == null) ? null : ImageDecoder.Serialize(source);
-        final int width = (source == null) ? 0 : source.getWidth();
-        final int height = (source == null) ? 0 : source.getHeight();
-        final int format = (source == null) ? ImageFormat.UNKNOWN : source.getFormat();
         callbackHandler.post(
                 new Runnable() {
                     @Override
                     public void run() {
-                        listener.onSingleBarcodeAvailable(bc, serialized, format, width, height);
+                        listener.OnHit(bc, source);
                     }
                 }
         );
@@ -148,16 +152,18 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
     }
 
     private void sendBlank(final Image source) {
-        switch (this.callbackOptions.blankVerbosity)
+        // Conflation:
+        switch (this.callbackOptions.conflateBlanks)
         {
             case None:
                 mLatestEvent = ELastEvent.Blank;
                 return;
             case First:
+            case Changes:
                 if (this.mLatestEvent == ELastEvent.Blank)
                     return;
                 break;
-            case Allways:
+            case All:
                 break;
         }
 
@@ -165,7 +171,7 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
                 new Runnable() {
                     @Override
                     public void run() {
-                        listener.onSingleBarcodeAvailable(null, null, ImageFormat.UNKNOWN, 0, 0);
+                        listener.OnBlank();
                     }
                 }
         );
@@ -174,15 +180,17 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
     }
 
     private void sendError(final Exception error) {
-        switch (this.callbackOptions.errorVerbosity)
+        // Conflation:
+        switch (this.callbackOptions.conflateErrors)
         {
             case None:
                 return;
             case First:
+            case Changes:
                 if (this.mLatestEvent == ELastEvent.Error)
                     return;
                 break;
-            case Allways:
+            case All:
                 break;
         }
 
@@ -190,7 +198,7 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
                 new Runnable() {
                     @Override
                     public void run() {
-                        listener.onError(error);
+                        listener.OnError(error);
                     }
                 }
         );

@@ -171,7 +171,7 @@ public class TrackingBarcodeScanner {
                     //Log.d(TAG, "CROP: looking in (" + crop.x + ", " + crop.y + ", " + crop.width + ", " + crop.height + ")");
                     left = crop.x;
                     top = crop.y;
-                    r = doFind(bitmap.crop(left, top, crop.width, crop.height));
+                    r = doFind(bitmap.crop(left, top, crop.width, crop.height), mScanOptions.beginsWith);
                 }
             }
 
@@ -181,7 +181,7 @@ public class TrackingBarcodeScanner {
                 //Log.d(TAG, "CROP: Failed - looking in full bitmap");
                 left = 0;
                 top = 0;
-                r = doFind(bitmap);
+                r = doFind(bitmap, mScanOptions.beginsWith);
 
                 // if that worked (i.e. the barcode is in a new place),
                 // we'll update the mLatestMatch rectangle:
@@ -250,8 +250,7 @@ public class TrackingBarcodeScanner {
         return res2.toArray(new Barcode[res2.size()]);
     }
 
-    private Result doFind(BinaryBitmap bitmap)
-    {
+    private Result doFind(BinaryBitmap bitmap, String beginsWith) {
         Result r = null;
         try {
             // First try where we found the barcode before:
@@ -264,7 +263,19 @@ public class TrackingBarcodeScanner {
             // not an error - the barcode just wasn't completely read
         }
 
-        return r;
+        if (r == null)
+            return r;
+
+        if (beginsWith == null || beginsWith.length() == 0)
+            return r;
+
+        if (r.getText() == null)
+            return null;
+
+        if (r.getText().startsWith(beginsWith))
+            return r;
+
+        return null;
     }
 
     private int mConsecutiveNoHits = 0;

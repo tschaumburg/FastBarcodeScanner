@@ -1,8 +1,6 @@
 package dk.schaumburgit.fastbarcodescanner;
 
 import android.app.Activity;
-import android.view.SurfaceView;
-import android.view.TextureView;
 
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeDetectedListener;
 import dk.schaumburgit.fastbarcodescanner.callbackmanagers.CallBackOptions;
@@ -93,13 +91,13 @@ class BarcodeScannerBuilder implements IBarcodeScannerBuilder {
     // Empty handling:
     //******************************************************************
     @Override
-    public IBarcodeScannerBuilder emptyDeglitch(int nSamples) {
+    public IBarcodeScannerBuilder debounceBlanks(int nSamples) {
         return clone(this.callbackOptions.clone(nSamples, -1));
     }
 
     @Override
-    public IBarcodeScannerBuilder emptyVerbosity(CallBackOptions.BlankVerbosity verbosity) {
-        return clone(this.callbackOptions.clone(verbosity));
+    public IBarcodeScannerBuilder conflateBlanks(EventConflation blankConflation) {
+        return clone(this.callbackOptions.clone(null, blankConflation, null));
     }
 
     @Override
@@ -111,13 +109,13 @@ class BarcodeScannerBuilder implements IBarcodeScannerBuilder {
     // Error handling:
     //******************************************************************
     @Override
-    public IBarcodeScannerBuilder errorDeglitch(int nSamples) {
+    public IBarcodeScannerBuilder debounceErrors(int nSamples) {
         return clone(this.callbackOptions.clone(-1, nSamples));
     }
 
     @Override
-    public IBarcodeScannerBuilder errorVerbosity(CallBackOptions.ErrorVerbosity verbosity) {
-        return clone(this.callbackOptions.clone(verbosity));
+    public IBarcodeScannerBuilder conflateErrors(EventConflation errorConflation) {
+        return clone(this.callbackOptions.clone(null, null, errorConflation));
     }
 
     //******************************************************************
@@ -129,8 +127,8 @@ class BarcodeScannerBuilder implements IBarcodeScannerBuilder {
     }
 
     @Override
-    public IBarcodeScannerBuilder resultVerbosity(CallBackOptions.ResultVerbosity verbosity) {
-        return clone(this.callbackOptions.clone(verbosity));
+    public IBarcodeScannerBuilder conflateHits(EventConflation hitConflation) {
+        return clone(this.callbackOptions.clone(hitConflation, null, null));
     }
 
     @Override
@@ -157,12 +155,11 @@ class BarcodeScannerBuilder implements IBarcodeScannerBuilder {
     //@Override
     private IBarcodeScanner start(
             Activity activity,
-            BarcodeDetectedListener listener,
-            boolean includeImagesInCallback
+            BarcodeDetectedListener listener
     )
     {
         IBarcodeScanner res = this.build(activity);
-        res.StartScan(includeImagesInCallback, listener, null);
+        res.StartScan(listener, null);
         return res;
     }
 }

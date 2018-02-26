@@ -23,6 +23,10 @@ public class StillSequenceCameraOptions
         this.preview = preview;
         this.minPixels = minPixels;
     }
+    public StillSequenceCameraOptions(SurfaceView preview)
+    {
+        this(preview, 1024*768);
+    }
     public StillSequenceCameraOptions clone(int minPixels)
     {
         return new StillSequenceCameraOptions(this.preview, minPixels);

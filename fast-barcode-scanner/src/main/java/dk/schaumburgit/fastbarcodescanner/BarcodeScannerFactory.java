@@ -2,6 +2,7 @@ package dk.schaumburgit.fastbarcodescanner;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.os.Build;
 import android.view.SurfaceView;
 import android.view.TextureView;
 
@@ -58,14 +59,32 @@ public class BarcodeScannerFactory {
         );
     }
 
-    public static IBarcodeScannerBuilder Builder(TextureView preview)
+    public static IBarcodeScannerBuilder builder(TextureView preview)
     {
         return new BarcodeScannerBuilder(new StillSequenceCamera2Options(preview));
     }
 
-    public static IBarcodeScannerBuilder BuilderLegacy(SurfaceView preview, int minPixels)
+    public static IBarcodeScannerBuilder builderLegacy(SurfaceView preview)
     {
-        return new BarcodeScannerBuilder(new StillSequenceCameraOptions(preview, minPixels));
+        return new BarcodeScannerBuilder(new StillSequenceCameraOptions(preview));
+    }
+
+    public static IBarcodeScannerBuilder builder()
+    {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            return builder(null);
+        } else {
+            return  builderLegacy(null);
+        }
+    }
+
+    public static SupportedCameraAPI supportedAPI()
+    {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            return SupportedCameraAPI.Camera2;
+        } else {
+            return  SupportedCameraAPI.LegacyOnly;
+        }
     }
 
     /**

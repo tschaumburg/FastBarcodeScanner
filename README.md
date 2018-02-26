@@ -5,91 +5,325 @@ The main advantages are:
  
 - **Library:** The core product of this project is the fastbarcodescanner.aar library which is straight-forward to integrate
 in your app. More details below!
-
 - **Headless:** The library does not require any user interface whatsoever. It will grab images directly from the camera and analyse them without requiring any access to the user interface (caveat: Android versions prior to Lollipop require that you let the camera have 1 (one) pixel to play with - see details later)
-
 - **Continuous:** Once you have called the start() method, the FastBarcodeScanner library will continue grabbing and analyzing images until you call stop (), with no interention required from you - it will just call you back whenever it finds a barcode.
-
-- **Fast:** I've measured 6-10 barcodes scanned per second - though poor lighting, motion blur etc. will reduce this
-
+- **Fast:** I've measured 30 barcodes scanned per second at a resolution of 2048x1536 (on a Pixel XL running Android 8.1) - though poor lighting, motion blur etc. will reduce this
+- **Optimized:** To reduce the load on the application, FastBarcodeScanner uses configurable *filtering,* *optimistic tracking,* *event conflation* and *scan state debouncing*.
 - **ZXing:** all the complicated bacode recognition is provided by ZXing, the industry-standard open source barcode library. All credit goes to the ZXing team - this library only adds camera handling.
-
 - **Open source**: the entire FastBarcodeScanner library is open source (as is the ZXing library, BTW) - so it's free for you to examine, tweak, optimize and fix
  
 Further points of potential interest:
  
 - **Cordova/Phonegap plugin:** There's a Cordova/Phonegap plugin for the FastBarcodeScanner library available at https://github.com/tschaumburg/FastBarcodeScannerPlugin
-
 - **Demo app:** In the FastBarcodeScanner repo, there's a proof-of-concept demo app. It contains a start button, a text field where any scanned barcodes are written, and a stop button - not exactly rocket science, but that's about as complicated as it gets. See [xxxxx](#the-demo-app)
  
-##The demo app
-The demo is written as a proof-of-concept for low-cost, highly portable item registration: you place your phone in a fixed location, and move each bar-coded item past the phone:
+## Getting started
 
-<photo>
+In your `build.gradle`,, import `fast-barcode-scanner`:
 
-If you're just trying this out, a simpler form of mounting will do:
+```groovy
+dependencies {
+    implementation 'dk.schaumburgit.fast-barcode-scanner:fast-barcode-scanner:2.0.0'
+}
+```
 
-<photo>
+In your `Application` class, add code to [build a scanner intance,](#Build-a-scanner-instance) [start 
+scanning,](#start-scanning) [stop scanning](#stop-scanning) and finally [close the scanner instance](#close-the-scanner-instance):
 
-You simply start the demo app, mount the phone, and press start:
+```java
+public class ExampleApplication
+   extends AppCompatActivity 
+   implements BarcodeDetectedListener
+{
+   IBarcodeScanner mScanner = null;
+   
+   @Override public void onCreate() 
+   {
+      super.onCreate();
+      this.requestPermissions(
+         new String[]{Manifest.permission.CAMERA},
+         REQUEST_CAMERA_PERMISSION
+      );
+      
+      // Build a scanner instance:
+      mScanner = BarcodeScannerFactory.builder().build(this);
+      
+      // ...set up buttons to call startScan() and stopScan()...
+   }
+   
+   private void startScan() 
+   {
+      // Start scanning:
+      mScanner.StartScan(this);
+   }
+   
+   private void stopScan() 
+   {
+      // Stop scanning:
+      mScanner.StopScan();
+   }
+   
+   @Override
+   public void OnHit(
+      BarcodeInfo barcodeInfo,
+      byte[] image, 
+      int format, 
+      int width, 
+      int height
+   )
+   {
+      // ...process the barcode in barcodeInfo.barcode...
+   }
+   
+   @Override
+   public void OnBlank() 
+   {
+      //...process blank (no-hit) scans...
+   }
+      
+   @Override
+   public void OnError(Exception error) 
+   {
+      //...process scan error...
+   }
+   
+    @Override
+    protected void onDestroy() 
+    {
+        // Close the scanner instance
+        mScanner.Close();
+        super.onDestroy();
+    }
+}
+```
 
-<screen shot>
+##Basic use
+Any application using the `fast-barcode-scanner` library will use these four steps: building a 
+scanner, starting it, stopping it and finally closing it to free any resources.
 
-You can now move barcoded items pas the phones camera, and the app will display any
-the phone in your
-If the barcode is recognized, the phone vibrates briefly. In the real world, the app would naturally do something with the scanned barcodes: upload them to an inventory server, identify duplicated event tickets, etc.
+###Build a scanner instance
+Building a scanner instance uses the [builder pattern.](https://en.wikipedia.org/wiki/Builder_pattern)
+In its simplest form building a scanner instance looks like this:
+```
+mScanner =
+   BarcodeScannerFactory
+   .builder()
+   .build();
+```
+
+The newly built scanner instance hasn't started scanning anything yet - but it has set up 
+its image processing pipeline, and reserved the necessary resources.
+
+###Start scanning
+
+Tu start actually scanning for barcodes, call the `StartScan` method, specifying where 
+the scanner should send any detection events:
+```
+mScanner.StartScan(
+   new BarcodeListener() 
+   {
+      @Override
+      public void OnHit(BarcodeInfo barcodeInfo, byte[] image, int format, int width, int height) 
+      {
+         // ...process the barcode in barcodeInfo.barcode...
+      }
+      @Override
+      public void OnBlank() 
+      {
+         //...process blank (no-hit) scans...
+      }
+      @Override
+      public void OnError(Exception error) 
+      {
+         //...process scan error...
+      }
+   }
+);
+```
+From this point, the scanner instance will continuously scan the video feed from the back camera
+for barcodes, calling `OnHit`, `OnBlank` and `OnError` as appropriate.
+
+###Stop scanning
+To stop the continuous scanning, call the `StopScan` method
+```
+mScanner.StopScan();
+```
+Notice that images that are already in the pipeline when `StopScan` is called will continue
+being processed - so it may taken some milliseconds for the events to stop.
+###Close the scanner instance
+Calling `Close` will dispose of any resources held by the scanner (including releasing the camera for others to use):
+```
+mScanner.Close();
+```
+
+##Advanced configuration
+The [Basic use] section showed how to build a scanner instance with the default configuration:
+```
+mScanner = BarcodeFactory.builder().build();
+```
+This section will show how scanners with custom configurations can be built.
+
+###Filtering
+In the default configuration, `fast-barcode-scanner` scans for *any* (supported) barcode format,
+with *any* contents.
+
+This can be modified to look only for specific barcode types:
+```
+mScanner =
+   BarcodeScannerFactory
+   .builder()
+   .FindQR()
+   .build();
+```
+Note that looking for a single barcode type is the fastest.
+
+The scanner can also be configured to disregard any barcode whose content doesn't match a specified 
+pattern:
+```
+mScanner =
+   BarcodeScannerFactory
+   .builder()
+   .BeginsWith("test:")
+   .build();
+```
+
+###Preview
+When using the default configuration, the scanner runs in *headless* mode - i.e. without showing 
+the video feed on-screen.
+
+This can be changed my passing a `TextureView` to the builder:
+``` 
+TextureView myPreview = (TextureView)findViewById(R.id.preview);
+mScanner =
+   BarcodeScannerFactory
+   .builder(myPreview)
+   .build();
+```
+Note that this is only supported on Android version **Lollipop** (aka **version 5.0** aka 
+**API level 21**) or later. See the 
+[Pre-Lollipop support](#pre-lollipop-support) section.
+
+###Pre-Lollipop support
+Android version **Lollipop** (aka **version 5.0** aka **API level 21**, released November 2014)
+introduced a new, considerably faster and more capable camera API called *Camera2*.
+
+`fast-barcode-scanner` supports both legacy, pre-Lollipop platforms and modern Camera2 platforms.
+
+If you require headless scanning, `fast-barcode-scanner` will handle the platform detection for you:
+
+
+If you want an on-screen preview, things get a little more complicated because the two APIs use
+different UI components for preview - `SurfaceView` (pre-Lollipop) and `TextureView` (Camera2).
+
+As a result, `fast-barcode-scanner` has two differen ways to create a builder with preview - one for pre-Lollipop 
+and one for Camera2 - and a helper method telling which is supported
+
+You will then have to add *both* a `SurfaceView` and a `TextureView` to your UI, and use 
+each as appropriate:
+
+```
+switch (BarcodeFactory.SupportedAPI)
+{
+   case SupportedCameraAPI.Camera2:
+      TextureView preview = ...create or get...
+      mScanner = 
+         BarcodeFactory
+         .builder(preview)
+         .build();
+      break;
+
+   case SupportedCameraAPI.LegacyOnly:
+      SurfaceView legacyPreview = ...create or get...
+      mScanner = 
+         BarcodeFactory
+         .builderLegacy(legacyPreview)
+         .build();
+      break;
+ }
+```
+After the cration of the builder, all other features work exactly the same on both 
+platforms - albeit much slower on pre-Lollipop.
+
+###Debounce
+
+In a perfect world, scanning results in a  perfect sequence of correct results.
+But in reality, *noise* intrudes - spurious blank or error readings, some times 
+making up as much as 10-20% of the readings.
+
+The common cure is to introduce a *debouncing* filter: a change in state (hit, 
+blank, error) is only accepted after remaining consistent for a configurable 
+number of scans.
+
+``` 
+mScanner =
+   BarcodeScannerFactory
+   .builder()
+   .debounceBlanks(2)
+   .debounceErrors(2)
+   .build();
+```
+
+Note that there is no `DebounceHits` - there are so many error checks involved in
+barcode detection tha fale hits are virtually non-existing.
+
+###Event conflation
+
+Without *event conflation*, `fast-barcode-scanner`  would emit an event at each scan - up to 30 times per second -
+regardless if anything has changed.
+
+For applications not needing this level of detail, event conflation can be configured for each
+type of event (hit, blank or error):
+
+``` 
+mScanner =
+   BarcodeScannerFactory
+   .builder()
+   .conflateHits(EventConflation.Changes)
+   .conflateBlanks(EventConflation.First)
+   .conflateErrors(EventConflation.None)
+   .build();
+```
+
+Conflation can be set to 
+
+- **None:** No events of this kind are ever let through.
+- **First:** Only the first event in a sequeence of this kind is let through. Note the 
+             qualifier 'in a sequence': if a scanning session consists of a sequence
+             of hits, a sequence of blanks and a sequence of hits, `ConflateHit(First)` 
+             will mean that *2* hit events are let through - the first from the first 
+             dequence and the first from the second sequence.
+- **Changes:** An event of this kind is let through if it is the first, or if its 
+               value has changed.
+- **All:** Every event of this kind is let though (i.e. conflation is off)
+
+###Optimistic tracking
+
+When scanning at 5-30 fps as `fast-barcode-scanner` does, it's a pretty good bet that 
+frame *n* will contain a barcode in roughly the same place as frame *(n-1).*
  
-But this is just a demo app, so we'll keep it simple: there's a start and a stop button, and a field displaying the contents of the currently scanned barcode:
+This assumption is the basis of the *optimistic tracking* feature.
+
+Optimistic tracking will remember where it sucessfully finds a barcode, and will look in the 
+same place (plus a configurable margin) the next time.
  
-<screen shot)
- 
-You simply place the phone in your holder, press start, and 
- 
-##Using the fastbarcodescanner.aar library
- 
-The fastbarcodescanner.aar library has a very simple API:
- 
-1. Instantiate a FastBarcodeScanner using one of the following constructors (depending on the Android version you're running):
+If the barcode is not found in the expected location, `fast-barcode-scanner` will revert
+to looking in the entire frame.
 
-    *Android Lollipop (API level 21) or later:*
+After a configurable number of such failures, fbs will switch back out of tracking mode - 
+until next time it acquires a barcode.
 
-    ```
-     FastBarcodeScanner fbs = new FastBarcodeScanner(activity); // scan without any on-screen preview
-     FastBarcodeScanner fbs = new FastBarcodeScanner(activity, textureView); // scan with preview displayed in textureView
-    ```
-    *Earlier Android versions:*
-    ```
-     FastBarcodeScanner fbs = new FastBarcodeScanner(activity, surfaceView); // scan with preview displayed in surfaceView
-    ```
 
-2. Start scanning:
+**Note:** Optimistic tracking is only implemented for single-barcode scanning.
 
-    ```
-    fbs.StartScan(
-       new BarcodeDetectedListener {
-          @override
-          onBarcodeAvailable(String barcode) {
-             ...*(see below)*
-          }
-          @override
-          onError(Exception error) {
-             ...*(see below)*
-          }
-       },
-       handler
-    );
-    ```
-    
-3. The code in `onBarcodeAvailable()` and `onError()` above will be called using the thread wrapped by the handler parameter. What you do with the barcode is up to you - the FastBarcodeScanner is already busily looking for the next barcode on its own, internal thread.
+**Note:** Optimistic tracking is a performance-boosting feature - it is not intended 
+to alter the result of the scans
 
-4. When you're done, simply call stopScan():
 
-    ```
-    fbs.stopScan();
-    ```
-    This will stop all the internal threads, and (most importantly) free the camera
 
-5. A well-behaved app will implement onPause() and onResume() to call stopScan() and startScan(), thus freeing e.g. the camera for use by other apps. 
+
+
+
+
 
 ##Performance considerations 
 Many things affect the performance of FastBarcodeScanner - these are the most important:
@@ -97,11 +331,31 @@ Many things affect the performance of FastBarcodeScanner - these are the most im
 ###Android version: Camera or Camera2
 This is simple: if you use the FastBarcodeScanner on Android Lollipop or later, you get access to the much more efficient Camera2 API. The effect is a factor 5x speedup.
 
-The cost is that you cut yourself off from 50-70% of the installed base (as of November 2015 - and dropping quickly).
+The cost is that you cut yourself off from 17.7% of the installed base (as of February 
+2018 - check [Android Dashboard](#https://developer.android.com/about/dashboards/index.html)) 
+for the latest numbers.
 
 To have the best of both worlds, write your code to test for the precense of Camera2, and use the proper constructor if available:
 
 ```
+switch (BarcodeFactory.SupportedAPI)
+{
+   case SupportedCameraAPI.Camera2:
+      TextureView preview = ...create or get...
+      mScanner = 
+         BarcodeFactory
+         .builder(preview)
+         .build();
+      break;
+
+   case SupportedCameraAPI.LegacyOnly:
+      SurfaceView legacyPreview = ...create or get...
+      mScanner = 
+         BarcodeFactory
+         .builderLegacy(legacyPreview)
+         .build();
+      break;
+ }
 ```
 
 ###Fixed-distance or variable-distance scanning
@@ -136,41 +390,33 @@ Our fix for this has been to
 
 This naturally assumes that all items being scanned are roughly identical, and have (roughly) identically placed barcodes. You can adjust the definition of "roughly identical" with the `RelativeTrackingMargin` property.
 
-## Previous text
+## Q&amp;A
 
-To include fast barcode scanning in you app, include the fast-barcode-scanner library in your app - if you're using gradle, here's the line to use:
 
-    dependencies {
-        ...
-        compile 'dk.schaumburgit.fast-barcode-scanner:fast-barcode-scanner:1.0.2'
-    }
+**Update Feb 2018:** Using a 2016 Pixel XL running Android 8.1 achieves a scan rate of 29.6 scans
+per second at a requested resolution of 2048x1536!
 
-Then, from you app, call `FastBarcodeScanner`:
+Although this was in optimum conditions (stationary target, good lighting, no glare or motion 
+blur), it shows what has been achievable since November 2016 - and will be commonplace 
+very soon, thanks to Moore's law.
 
-    private void onClickFocus() {
-        mScanner = new FastBarcodeScanner(this, null);
-        mScanner.setBarcodeListener(this);
-        mScanner.StartFocus();
-    }
-    
-    private void onClickStart() {
-        mScanner.StartScan();
-    }
-    
-    @Override
-    public void onBarcodeAvailable(final String barcode) {
-        ...
-    }
-
+(Note: this was a very informal test, using a wrist watch, so don't rely on my numbers - 
+make your own measurements)
 
 ###Can it go faster?
-Yes!
+Yes! - as camera and general platform performance improves, `fast-barcode-scanner` will 
+improve too.
 
-Currently, the limiting factor is the image capture rate - the ZXing library will take about 20ms to find and decode the QR code, and then the next 80-120 ms are spent waiting for the next image.
+But it has always been my goal to achieve realtime, full-image scanning at HD video 
+levels - and with 30fps@2048x1535 achieved, this has pretty much been achieved for 
+high-end phones.
 
-But instead of requesting image captures one-by-one, the Camera2 API supports continuous requests, which should give a much faster capture rate (I'm hoping for 20-30 ms)
-
-So 30-50 captures per second appear within reach!
+So now my personal goal has changed "realtime scanning at HD video levels - **using
+ my mothers phone**" - i.e. more a question of broadening the performance on the 
+ average-to-lowend phones.
+ 
+But if you disagree, feel free to suggest (or even better: implement) improvements 
+to peak performance!
 
 ###Why not just use ZXing alone?
 ZXing is a *great* library, and the ZXing app is great too.

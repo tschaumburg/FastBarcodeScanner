@@ -1,5 +1,7 @@
 package dk.schaumburgit.fastbarcodescanner.callbackmanagers;
 
+import dk.schaumburgit.fastbarcodescanner.EventConflation;
+
 /**
  * Created by Thomas on 05-02-2018.
  */
@@ -8,67 +10,64 @@ public class CallBackOptions
 {
     public final boolean includeImage;
 
-    public enum ResultVerbosity { None, First, Changes, Allways}
-    public final ResultVerbosity resultVerbosity;
+    public final EventConflation conflateHits;
+    public final EventConflation conflateBlanks;
+    public final EventConflation conflateErrors;
 
-    public final int blankReluctance;
-    public enum BlankVerbosity { None, First, Allways}
-    public final BlankVerbosity blankVerbosity;
-
-    public final int errorReluctance;
-    public enum ErrorVerbosity { None, First, Allways}
-    public final ErrorVerbosity errorVerbosity;
+    public final int debounceBlanks;
+    public final int debounceErrors;
 
     public CallBackOptions(
             boolean includeImageInCallback,
-            ResultVerbosity resultVerbosity,
-            int blankReluctance,
-            BlankVerbosity blankVerbosity,
-            int errorReluctance,
-            ErrorVerbosity errorVerbosity
+            EventConflation conflateHits,
+            int debounceBlanks,
+            EventConflation conflateBlanks,
+            int debounceErrors,
+            EventConflation conflateErrors
     )
     {
         this.includeImage = includeImageInCallback;
-        this.resultVerbosity = resultVerbosity;
-        this.blankReluctance = blankReluctance;
-        this.blankVerbosity = blankVerbosity;
-        this.errorReluctance= errorReluctance;
-        this.errorVerbosity = errorVerbosity;
+        this.debounceBlanks = debounceBlanks;
+        this.debounceErrors = debounceErrors;
+        this.conflateHits = conflateHits;
+        this.conflateBlanks = conflateBlanks;
+        this.conflateErrors = conflateErrors;
 
     }
     public CallBackOptions()
     {
         this.includeImage = false;
-        this.resultVerbosity = ResultVerbosity.Changes;
-        this.blankReluctance = 5;
-        this.blankVerbosity = BlankVerbosity.None;
-        this.errorReluctance = 0;
-        this.errorVerbosity = ErrorVerbosity.First;
+        this.conflateHits = EventConflation.Changes;
+        this.debounceBlanks = 5;
+        this.conflateBlanks = EventConflation.None;
+        this.debounceErrors = 0;
+        this.conflateErrors = EventConflation.First;
     }
     public CallBackOptions clone(boolean includeImage)
     {
-        return new CallBackOptions(includeImage, this.resultVerbosity, this.blankReluctance, this.blankVerbosity, this.errorReluctance, this.errorVerbosity);
+        return new CallBackOptions(includeImage, this.conflateHits, this.debounceBlanks, this.conflateBlanks, this.debounceErrors, this.conflateErrors);
     }
-    public CallBackOptions clone(int blankReluctance, int errorReluctance)
+    public CallBackOptions clone(int debounceBlanks, int debounceErrors)
     {
-        if (blankReluctance < 0)
-            blankReluctance = this.blankReluctance;
+        if (debounceBlanks < 0)
+            debounceBlanks = this.debounceBlanks;
 
-        if (errorReluctance < 0)
-            blankReluctance = this.errorReluctance;
+        if (debounceErrors < 0)
+            debounceErrors = this.debounceErrors;
 
-        return new CallBackOptions(this.includeImage, this.resultVerbosity, blankReluctance, blankVerbosity, this.errorReluctance, this.errorVerbosity);
+        return new CallBackOptions(this.includeImage, this.conflateHits, debounceBlanks, this.conflateBlanks, debounceErrors, this.conflateErrors);
     }
-    public CallBackOptions clone(ResultVerbosity resultVerbosity)
+    public CallBackOptions clone(EventConflation conflateHits, EventConflation conflateBlanks, EventConflation conflateErrors)
     {
-        return new CallBackOptions(this.includeImage, resultVerbosity, this.blankReluctance, this.blankVerbosity, this.errorReluctance, this.errorVerbosity);
-    }
-    public CallBackOptions clone(BlankVerbosity blankVerbosity)
-    {
-        return new CallBackOptions(this.includeImage, this.resultVerbosity, this.blankReluctance, blankVerbosity, this.errorReluctance, this.errorVerbosity);
-    }
-    public CallBackOptions clone(ErrorVerbosity errorVerbosity)
-    {
-        return new CallBackOptions(this.includeImage, this.resultVerbosity, this.blankReluctance, this.blankVerbosity, this.errorReluctance, errorVerbosity);
+        if (conflateHits == null)
+            conflateHits = this.conflateHits;
+
+        if (conflateBlanks == null)
+            conflateBlanks = this.conflateBlanks;
+
+        if (conflateErrors == null)
+            conflateErrors = this.conflateErrors;
+
+        return new CallBackOptions(this.includeImage, conflateHits, this.debounceBlanks, conflateBlanks, this.debounceErrors, conflateErrors);
     }
 }
