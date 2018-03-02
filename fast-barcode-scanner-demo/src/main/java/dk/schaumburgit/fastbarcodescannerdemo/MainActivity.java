@@ -30,6 +30,7 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import dk.schaumburgit.fastbarcodescanner.BarcodeScannerFactory;
+import dk.schaumburgit.fastbarcodescanner.EventConflation;
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner;
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeDetectedListener;
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeInfo;

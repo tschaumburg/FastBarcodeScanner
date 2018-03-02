@@ -17,7 +17,7 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
     /**
      * Tag for the {@link Log}.
      */
-    private static final String TAG = "BarcodeScanner";
+    private static final String TAG = "fast-barcode-scanner";
 
     private final ScanOptions mScanOptions;
     private final BarcodeDetectedListener listener;
@@ -68,6 +68,8 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
         mConsecutiveErrorCount = 0;
         if (mConsecutiveBlankCount >= this.callbackOptions.debounceBlanks) {
             sendBlank(callbackOptions.includeImage ? source : null);
+        } else {
+            Log.v(TAG, "Debounced barcode: " + null);
         }
     }
 
@@ -103,6 +105,8 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
         mConsecutiveErrorCount++;
         if (mConsecutiveErrorCount >= this.callbackOptions.debounceErrors) {
             sendError(error);
+        } else {
+            Log.v(TAG, "Debounced error" );
         }
     }
 
@@ -121,16 +125,21 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
         switch (this.callbackOptions.conflateHits)
         {
             case None:
+                Log.v(TAG, "Conflating barcode: " + barcode);
                 return;
             case First:
-                if (mLatestEvent == ELastEvent.Barcode)
+                if (mLatestEvent == ELastEvent.Barcode) {
+                    Log.v(TAG, "Conflating barcode: " + barcode);
                     return;
+                }
                 break;
             case Changes:
                 if (mLatestEvent == ELastEvent.Barcode)
                 {
-                    if (Objects.equals(barcode, mLastReportedBarcode))
+                    if (Objects.equals(barcode, mLastReportedBarcode)) {
+                        Log.v(TAG, "Conflating barcode: " + barcode);
                         return;
+                    }
                 }
                 break;
             case All:
@@ -138,6 +147,7 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
         }
 
         final BarcodeInfo bc = new BarcodeInfo(barcode, points);
+        Log.v(TAG, "Sending barcode: " + bc.barcode);
         callbackHandler.post(
                 new Runnable() {
                     @Override
@@ -157,16 +167,20 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
         {
             case None:
                 mLatestEvent = ELastEvent.Blank;
+                Log.v(TAG, "Conflated blank");
                 return;
             case First:
             case Changes:
-                if (this.mLatestEvent == ELastEvent.Blank)
+                if (this.mLatestEvent == ELastEvent.Blank) {
+                    Log.v(TAG, "Conflated blank");
                     return;
+                }
                 break;
             case All:
                 break;
         }
 
+        Log.v(TAG, "Sending blank");
         callbackHandler.post(
                 new Runnable() {
                     @Override
