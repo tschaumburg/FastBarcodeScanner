@@ -427,6 +427,7 @@ class BarcodeScanner implements IBarcodeScanner {
     public void setLockFocus(boolean lockFocus) {
         mImageSource.setLockFocus(lockFocus);
     }
+
     //*********************************************************************
     //* Managing Barcode events:
     //* ========================

@@ -9,6 +9,7 @@ import android.app.Fragment;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
 import android.media.Image;
@@ -80,6 +81,7 @@ public class MainActivity extends AppCompatActivity
         mTextureView = (TextureView)findViewById(R.id.preview2);
         mImageView = (ImageView)findViewById(R.id.imageview);
     }
+
 
     @Override
     protected void onDestroy() {

@@ -69,6 +69,7 @@ public class StillSequenceCamera implements IStillSequenceCamera {
 
         // Open a camera:
         mCamera = Camera.open(mCameraId);
+
     }
 
     @Override

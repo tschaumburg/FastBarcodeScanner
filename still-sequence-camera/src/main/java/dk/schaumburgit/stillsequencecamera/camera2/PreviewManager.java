@@ -7,6 +7,7 @@ import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
+import android.hardware.SensorManager;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.params.StreamConfigurationMap;
@@ -14,6 +15,7 @@ import android.media.Image;
 import android.media.ImageReader;
 import android.util.Log;
 import android.util.Size;
+import android.view.OrientationEventListener;
 import android.view.Surface;
 import android.view.TextureView;
 
@@ -32,6 +34,8 @@ public class PreviewManager
     private final TextureView mTextureView;
     private Size mPreviewSize;
     private Surface mPreviewSurface = null;
+    private String mCameraId;
+    private OrientationEventListener mOrientationListener = null;
 
     public PreviewManager(Activity activity, TextureView textureView)
     {
@@ -59,6 +63,7 @@ public class PreviewManager
      * @param cameraId Id of the camera
      */
     public void setup(String cameraId) {
+        mCameraId = cameraId;
         try {
             CameraManager manager = (CameraManager) mActivity.getSystemService(Context.CAMERA_SERVICE);
             StreamConfigurationMap map = manager
@@ -101,8 +106,27 @@ public class PreviewManager
                         }
                 );
 
-                if (mTextureView.isAvailable())
-                    configureTransform();
+                if (mTextureView.isAvailable()) {
+                    mOrientationListener = new OrientationEventListener(mActivity,
+                            SensorManager.SENSOR_DELAY_NORMAL) {
+
+                        @Override
+                        public void onOrientationChanged(int orientation) {
+                            configureTransform();
+                        }
+                    };
+
+                    if (mOrientationListener.canDetectOrientation() == true) {
+                        Log.v(TAG, "Can detect orientation");
+                        mOrientationListener.enable();
+                    } else {
+                        Log.v(TAG, "Cannot detect orientation");
+                        mOrientationListener.disable();
+                    }
+
+                }
+
+                configureTransform();
             } else {
                 //mPreviewImageReader = ImageReader.newInstance(320, 240, ImageFormat.YUV_420_888, 2);
                 //mPreviewImageReader.setOnImageAvailableListener(
@@ -141,6 +165,11 @@ public class PreviewManager
 
         //if (mPreviewImageReader != null)
         //    mPreviewImageReader.setOnImageAvailableListener(null, null);
+
+        if (mOrientationListener != null) {
+            mOrientationListener.disable();
+            mOrientationListener = null;
+        }
     }
 
     /**
@@ -152,6 +181,8 @@ public class PreviewManager
         if (null == mTextureView || null == mPreviewSize) {
             return;
         }
+
+        Log.e(TAG, "ROTATION: configureTransform");
 
         int viewWidth = mTextureView.getWidth();
         int viewHeight = mTextureView.getHeight();
@@ -169,10 +200,12 @@ public class PreviewManager
                     (float) viewHeight / mPreviewSize.getHeight(),
                     (float) viewWidth / mPreviewSize.getWidth());
             matrix.postScale(scale, scale, centerX, centerY);
-            matrix.postRotate(90 * (rotation - 2), centerX, centerY);
-        } else if (Surface.ROTATION_180 == rotation) {
-            matrix.postRotate(180, centerX, centerY);
         }
+        int requiredImageRotation = RotationHelper.getNeededImageRotationDegrees(mActivity, mCameraId);
+        matrix.postRotate(requiredImageRotation /*90 * (rotation - 2)*/, centerX, centerY);
+        //} else if (Surface.ROTATION_180 == rotation) {
+        //    matrix.postRotate(180/*mRotateImageDegrees*/ /*180*/, centerX, centerY);
+        //}
         mTextureView.setTransform(matrix);
 
         // set up the preview surface

@@ -63,7 +63,7 @@ subprojects {
         IS_UPLOADING = project.getGradle().startParameter.taskNames.any{it.contains('bintrayUpload')}
 
         PUBLISH_GROUP_ID ='dk.schaumburgit.fast-barcode-scanner'
-        PUBLISH_VERSION = '2.0.0.alpha3'
+        PUBLISH_VERSION = '2.0.0.alpha5'
     }
 
     if (project.name in ['fast-barcode-scanner-demo']) {

@@ -75,7 +75,7 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
 
         this.mActivity = activity;
 
-        mFocusManager = new FocusManager(activity, camOptions.preview);
+        mFocusManager = new FocusManager(activity);
         if (camOptions.preview !=null)
             mPreview = new PreviewManager(activity, camOptions.preview);
         mImageCapture = new CaptureManager(activity, mPreview, camOptions.minPixels);
@@ -193,7 +193,7 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
                                 Log.v(TAG, "start(): state => STARTING");
                                 List<Surface> surfaces;
                                 if (mPreview != null)
-                                    surfaces = Arrays.asList(mFocusManager.getSurface(), mImageCapture.getSurface());//, mPreview.getSurface());
+                                    surfaces = Arrays.asList(mFocusManager.getSurface(), mImageCapture.getSurface(), mPreview.getSurface());
                                 else
                                     surfaces = Arrays.asList(mFocusManager.getSurface(), mImageCapture.getSurface());
                                 mCameraDevice.createCaptureSession(

@@ -208,8 +208,7 @@ public class CaptureManager {
 
     private HandlerThread mInternalCaptureThread;
     private Handler mInternalCaptureHandler;
-    public void start(final CameraCaptureSession cameraCaptureSession, final Handler callbackHandler, final IStillSequenceCamera.OnImageAvailableListener listener)
-    {
+    public void start(final CameraCaptureSession cameraCaptureSession, final Handler callbackHandler, final IStillSequenceCamera.OnImageAvailableListener listener) {
         if (mImageReader == null)
             throw new IllegalStateException("CaptureManager: start() may only be called after setup() and before close()");
 
@@ -241,32 +240,30 @@ public class CaptureManager {
                     }
 
                     private Image mLatestImage = null;
-                    private synchronized Image getLatestImage()
-                    {
+
+                    private synchronized Image getLatestImage() {
                         Image image = mLatestImage;
                         mLatestImage = null;
                         return image;
                     }
-                    private synchronized void setLatestImage(Image image)
-                    {
+
+                    private synchronized void setLatestImage(Image image) {
                         if (mLatestImage != null)
                             mLatestImage.close();
                         mLatestImage = image;
                     }
-                    private void sendImageAvailable(Image image)
-                    {
+
+                    private void sendImageAvailable(Image image) {
                         // begin protected region
                         setLatestImage(image);
                         // end protected region
 
-                        if (listener == null)
-                        {
+                        if (listener == null) {
                             image.close();
                             return;
                         }
 
-                        if (image == null)
-                        {
+                        if (image == null) {
                             return;
                         }
 
@@ -277,14 +274,12 @@ public class CaptureManager {
                                 Image image = getLatestImage();
                                 // end protected region
 
-                                if (image == null)
-                                {
+                                if (image == null) {
                                     return;
                                 }
 
                                 IStillSequenceCamera.OnImageAvailableListener listener = mImageListener;
-                                if (listener == null)
-                                {
+                                if (listener == null) {
                                     image.close();
                                     return;
                                 }
@@ -303,6 +298,11 @@ public class CaptureManager {
                 mInternalCaptureHandler
         );
 
+        configureRequest(cameraDevice);
+    }
+
+    private void configureRequest(CameraDevice cameraDevice)
+    {
         try {
             // This is the CaptureRequest.Builder that we use to take a picture.
             final CaptureRequest.Builder captureBuilder =
@@ -318,8 +318,8 @@ public class CaptureManager {
                     CaptureRequest.CONTROL_AE_MODE_ON);
 
             // Orientation
-            int rotation = mActivity.getWindowManager().getDefaultDisplay().getRotation();
-            captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, ORIENTATIONS.get(rotation));
+            //int rotation = mActivity.getWindowManager().getDefaultDisplay().getRotation();
+            //captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, ORIENTATIONS.get(rotation));
 
             mStillCaptureRequest = captureBuilder.build();
 
@@ -331,18 +331,6 @@ public class CaptureManager {
                         public void onCaptureSequenceCompleted(CameraCaptureSession session, int sequenceId, long frameNumber) {
                             super.onCaptureSequenceCompleted(session, sequenceId, frameNumber);
                             {
-                                if (mInternalCaptureThread != null) {
-                                    Log.i(TAG, "Killed capture thread");
-                                    try {
-                                        mInternalCaptureHandler.removeCallbacksAndMessages(null);
-                                        mInternalCaptureThread.quitSafely();
-                                        mInternalCaptureThread.join();
-                                        mInternalCaptureThread = null;
-                                        mInternalCaptureHandler = null;
-                                    } catch (Exception e) {
-                                        e.printStackTrace();
-                                    }
-                                }
                             }
                         }
                     },
@@ -354,6 +342,19 @@ public class CaptureManager {
 
     public void stop()
     {
+        if (mInternalCaptureThread != null) {
+            Log.i(TAG, "Killed capture thread");
+            try {
+                mInternalCaptureHandler.removeCallbacksAndMessages(null);
+                mInternalCaptureThread.quitSafely();
+                mInternalCaptureThread.join();
+                mInternalCaptureThread = null;
+                mInternalCaptureHandler = null;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
         mImageListener = null;
         if (null != mImageReader) {
             mImageReader.setOnImageAvailableListener(null, null);
