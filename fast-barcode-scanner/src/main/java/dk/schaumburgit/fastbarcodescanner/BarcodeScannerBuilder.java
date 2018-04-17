@@ -4,6 +4,7 @@ import android.app.Activity;
 
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeDetectedListener;
 import dk.schaumburgit.fastbarcodescanner.callbackmanagers.CallBackOptions;
+import dk.schaumburgit.fastbarcodescanner.callbackmanagers.EventConflation;
 import dk.schaumburgit.stillsequencecamera.camera.StillSequenceCameraOptions;
 import dk.schaumburgit.stillsequencecamera.camera2.StillSequenceCamera2Options;
 import dk.schaumburgit.trackingbarcodescanner.ScanOptions;

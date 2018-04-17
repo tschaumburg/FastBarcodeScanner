@@ -115,14 +115,14 @@ public interface IBarcodeScanner {
      */
     public interface BarcodeDetectedListener //extends ErrorDetectedListener
     {
-        void OnHit(BarcodeInfo barcode, Image image);
+        void OnHit(BarcodeInfo barcode, String sourceUrl);
         void OnBlank();
         void OnError(Exception error);
     }
 
     public interface MultipleBarcodesDetectedListener
     {
-        void OnHits(BarcodeInfo[] barcodes, Image image);
+        void OnHits(BarcodeInfo[] barcodes, String sourceUrl);
         void OnBlank();
         void OnError(Exception error);
     }

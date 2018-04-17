@@ -2,7 +2,7 @@ package dk.schaumburgit.fastbarcodescanner;
 
 import android.app.Activity;
 
-import dk.schaumburgit.fastbarcodescanner.callbackmanagers.CallBackOptions;
+import dk.schaumburgit.fastbarcodescanner.callbackmanagers.EventConflation;
 
 /**
  * Created by Thomas on 08-02-2018.

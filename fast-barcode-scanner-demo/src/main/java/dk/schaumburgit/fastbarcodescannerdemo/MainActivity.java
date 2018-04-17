@@ -9,14 +9,13 @@ import android.app.Fragment;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
-import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
 import android.media.Image;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Vibrator;
 import android.support.annotation.NonNull;
-import android.support.v13.app.FragmentCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -31,7 +30,6 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import dk.schaumburgit.fastbarcodescanner.BarcodeScannerFactory;
-import dk.schaumburgit.fastbarcodescanner.EventConflation;
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner;
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeDetectedListener;
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeInfo;
@@ -50,8 +48,8 @@ public class MainActivity extends AppCompatActivity
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
+        //Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        //setSupportActionBar(toolbar);
 
         Button startButton = (Button)findViewById(R.id.start);
         startButton.setOnClickListener(new View.OnClickListener() {
@@ -77,7 +75,7 @@ public class MainActivity extends AppCompatActivity
             }
         });
 
-        //mSurfaceView = (SurfaceView)findViewById(R.id.preview);
+        mSurfaceView = (SurfaceView)findViewById(R.id.preview);
         mTextureView = (TextureView)findViewById(R.id.preview2);
         mImageView = (ImageView)findViewById(R.id.imageview);
     }
@@ -124,31 +122,28 @@ public class MainActivity extends AppCompatActivity
 
         if (mScanner == null) {
             nCallbacks = 0;
-            //mScanner = new BarcodeScanner(this, (TextureView)null, 4*1024*768);
-            //mScanner = new BarcodeScanner(this, mSurfaceView);
-            //mScanner.setScanningStateListener(this);
-            //mScanner = new BarcodeScanner(this, mTextureView, 4*1024*768);
-            /*mScanner =
-                    BarcodeScanner
-                            .BackCamera(this, mTextureView) // (TextureView)null)
-                            .Capture(4*1024*768)
-                            .scanQR()
-                            //.beginningWith("sdp:card")
-                            .enableTracking(1.0, 3, "")
-                            .deglitch(3)
-                            //.verbose()
-                            .build();*/
 
-            mScanner =
-                    BarcodeScannerFactory
-                            .builder(mTextureView)
-                            .resolution(4*1024*768)
-                            //.findQR()
-                            .debounceBlanks(3)
-                            .debounceErrors(3)
-                            .track(1.0, 3)
-                            .build(this);
-
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                mScanner =
+                        BarcodeScannerFactory
+                                .builder(mTextureView)
+                                .resolution(1920 * 1088)
+                                //.findQR()
+                                .debounceBlanks(3)
+                                .debounceErrors(3)
+                                .track(1.0, 3)
+                                .build(this);
+            } else {
+                mScanner =
+                        BarcodeScannerFactory
+                                .builderLegacy(mSurfaceView)
+                                .resolution(960*720)//(1920 * 1088)
+                                //.findQR()
+                                .debounceBlanks(3)
+                                .debounceErrors(3)
+                                .track(1.0, 3)
+                                .build(this);
+            }
         }
 
         Button startButton = (Button)findViewById(R.id.start);
@@ -189,7 +184,7 @@ public class MainActivity extends AppCompatActivity
     }
 
     @Override
-    public void OnHits(BarcodeInfo[] barcodes, Image image) {
+    public void OnHits(BarcodeInfo[] barcodes, String sourceUrl) {
         String barcodesText = null;
 
         if (barcodes != null && barcodes.length > 0)
@@ -205,7 +200,7 @@ public class MainActivity extends AppCompatActivity
         final String latestBarcode = (barcodesText == null) ? "none" : barcodesText;
         final TextView resView = (TextView) findViewById(R.id.textView2);
 
-        Log.v(TAG, "Start decode");
+        /*Log.v(TAG, "Start decode");
         final Bitmap bm = image2bitmap(image);
         Log.v(TAG, "End decode");
 
@@ -219,7 +214,7 @@ public class MainActivity extends AppCompatActivity
                     }
                 }
         );
-
+*/
         if (barcodesText != null) {
             if (!"1: pfx:calibrator".equalsIgnoreCase(barcodesText)) {
                 Vibrator v = (Vibrator) this.getSystemService(Context.VIBRATOR_SERVICE);
@@ -229,7 +224,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    private Bitmap image2bitmap(Image source)
+ /*   private Bitmap image2bitmap(Image source)
     {
         if (source==null)
             return null;
@@ -241,10 +236,11 @@ public class MainActivity extends AppCompatActivity
 
         return ImageDecoder.ToBitmap(serialized, format, width, height);
     }
+*/
 
     private int nCallbacks = 9;
     @Override
-    public void OnHit(BarcodeInfo barcodeInfo, Image image)
+    public void OnHit(BarcodeInfo barcodeInfo, String sourceUrl)
     {
         nCallbacks++;
         String barcode = null;
@@ -256,7 +252,7 @@ public class MainActivity extends AppCompatActivity
         final TextView resView = (TextView) findViewById(R.id.textView2);
 
         Log.v(TAG, "Start decode");
-        final Bitmap bm = image2bitmap(image);
+        //final Bitmap bm = image2bitmap(image);
         Log.v(TAG, "End decode");
 
         this.runOnUiThread(
@@ -264,8 +260,8 @@ public class MainActivity extends AppCompatActivity
                     @Override
                     public void run() {
                         resView.setText(latestBarcode + "  (" + count + ")");
-                        if (bm != null)
-                            mImageView.setImageBitmap(bm);
+                        /*if (bm != null)
+                            mImageView.setImageBitmap(bm);*/
                     }
                 }
         );
@@ -343,8 +339,10 @@ public class MainActivity extends AppCompatActivity
         //if (this.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
         //    new ConfirmationDialog().show(this.getFragmentManager(), FRAGMENT_DIALOG);
         //} else {
+        if (Build.VERSION.SDK_INT >= 23) {
             this.requestPermissions(new String[]{Manifest.permission.CAMERA},
                     REQUEST_CAMERA_PERMISSION);
+        }
         //}
         //Log.e(TAG, "DOESNT HAVE CAMERA PERMISSION");
     }
@@ -394,7 +392,7 @@ public class MainActivity extends AppCompatActivity
     /**
      * Shows OK/Cancel confirmation dialog about camera permission.
      */
-    public static class ConfirmationDialog extends DialogFragment {
+    /*public static class ConfirmationDialog extends DialogFragment {
 
         @Override
         public Dialog onCreateDialog(Bundle savedInstanceState) {
@@ -421,6 +419,6 @@ public class MainActivity extends AppCompatActivity
                             })
                     .create();
         }
-    }
+    }*/
 
 }

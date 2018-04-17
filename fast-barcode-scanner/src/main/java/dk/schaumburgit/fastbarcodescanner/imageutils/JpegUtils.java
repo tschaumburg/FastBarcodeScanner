@@ -4,13 +4,7 @@ import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
 
-import com.google.zxing.PlanarYUVLuminanceSource;
-import com.google.zxing.RGBLuminanceSource;
-
 import java.io.ByteArrayOutputStream;
-import java.io.UnsupportedEncodingException;
-
-import dk.schaumburgit.trackingbarcodescanner.RGB565LuminanceSource;
 
 /**
  * Created by Thomas on 16-12-2015.
@@ -59,7 +53,7 @@ public class JpegUtils
                 // Tried and tested myself
                 return null;//new RGBLuminanceSource(width, height, uncompress(data, width, height));// PlanarYUVLuminanceSource(bytes, width, height, 0, 0, width, height, false);
             case ImageFormat.RGB_565:
-                return null;//new RGB565LuminanceSource(width, height, uncompress(data, width, height));// PlanarYUVLuminanceSource(bytes, width, height, 0, 0, width, height, false);
+                return null;//new RGB565(width, height, uncompress(data, width, height));// PlanarYUVLuminanceSource(bytes, width, height, 0, 0, width, height, false);
             case ImageFormat.RAW_SENSOR:
             case ImageFormat.RAW10:
             case ImageFormat.RAW12:

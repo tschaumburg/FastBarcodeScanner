@@ -1,5 +1,6 @@
 package dk.schaumburgit.stillsequencecamera.camera2;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.Context;
 import android.hardware.camera2.CameraAccessException;
@@ -7,19 +8,20 @@ import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 //import android.support.annotation.NonNull;
 import android.util.Log;
+import android.util.Size;
 import android.view.Surface;
-import android.view.TextureView;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
+import dk.schaumburgit.stillsequencecamera.CaptureFormatInfo;
 import dk.schaumburgit.stillsequencecamera.IStillSequenceCamera;
 
 /**
@@ -31,6 +33,7 @@ import dk.schaumburgit.stillsequencecamera.IStillSequenceCamera;
  *
  * Created by Thomas Schaumburg on 21-11-2015.
  */
+@TargetApi(Build.VERSION_CODES.LOLLIPOP)
 public class StillSequenceCamera2 implements IStillSequenceCamera {
     private static final String TAG = "StillSequenceCamera2";
     private final Activity mActivity;
@@ -111,8 +114,13 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
     }
 
     @Override
-    public Map<Integer, Double> getSupportedImageFormats() {
-        return mImageCapture.getSupportedImageFormats(mCameraId);
+    public double sourceAspectRatio() {
+        return mImageCapture.sourceAspectRatio(mCameraId);
+    }
+
+    @Override
+    public List<CaptureFormatInfo> getSupportedImageFormats(double relativeDevicePerformance) {
+        return mImageCapture.getSupportedImageFormats(mCameraId, relativeDevicePerformance);
     }
 
     /**
@@ -126,14 +134,14 @@ public class StillSequenceCamera2 implements IStillSequenceCamera {
      * @throws IllegalStateException if the StillSequenceCamera2 is in any but the CLOSED state.
      */
     @Override
-    public void setup(int imageFormat)
+    public void setup(int imageFormat, int imageWidth, int imageHeight)
             throws IllegalStateException
     {
         if (mState != CLOSED)
             throw new IllegalStateException("StillSequenceCamera2.setup() can only be called in the CLOSED state");
 
         try {
-            mImageCapture.setup(mCameraId, imageFormat);
+            mImageCapture.setup(mCameraId, imageFormat, imageWidth, imageHeight);
             mFocusManager.setup(mCameraId);
             if (mPreview!=null)
                 mPreview.setup(mCameraId);

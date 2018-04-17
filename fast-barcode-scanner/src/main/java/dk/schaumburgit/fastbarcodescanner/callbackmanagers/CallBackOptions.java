@@ -1,7 +1,5 @@
 package dk.schaumburgit.fastbarcodescanner.callbackmanagers;
 
-import dk.schaumburgit.fastbarcodescanner.EventConflation;
-
 /**
  * Created by Thomas on 05-02-2018.
  */
@@ -36,7 +34,7 @@ public class CallBackOptions
     }
     public CallBackOptions()
     {
-        this.includeImage = false;
+        this.includeImage = true;//false;
         this.conflateHits = EventConflation.Changes;
         this.debounceBlanks = 5;
         this.conflateBlanks = EventConflation.None;

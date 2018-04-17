@@ -182,23 +182,30 @@ public class PreviewManager
             return;
         }
 
-        Log.e(TAG, "ROTATION: configureTransform");
-
+        // Basic parameters that the transform is calculated from:
         int viewWidth = mTextureView.getWidth();
         int viewHeight = mTextureView.getHeight();
-
         int rotation = mActivity.getWindowManager().getDefaultDisplay().getRotation();
+        int bufferHeight = mPreviewSize.getHeight();
+        int bufferWidth = mPreviewSize.getWidth();
+
+        // Check if the basic parameters have changed since last - if not, skip the calculation
+        if (!haveTransformParametersChanged(viewWidth, viewHeight, rotation,  bufferHeight, bufferWidth))
+            return;
+
+        Log.v(TAG, "ROTATION: configureTransform");
+
         Matrix matrix = new Matrix();
         RectF viewRect = new RectF(0, 0, viewWidth, viewHeight);
-        RectF bufferRect = new RectF(0, 0, mPreviewSize.getHeight(), mPreviewSize.getWidth());
+        RectF bufferRect = new RectF(0, 0, bufferHeight, bufferWidth);
         float centerX = viewRect.centerX();
         float centerY = viewRect.centerY();
         if (Surface.ROTATION_90 == rotation || Surface.ROTATION_270 == rotation) {
             bufferRect.offset(centerX - bufferRect.centerX(), centerY - bufferRect.centerY());
             matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.FILL);
             float scale = Math.max(
-                    (float) viewHeight / mPreviewSize.getHeight(),
-                    (float) viewWidth / mPreviewSize.getWidth());
+                    (float) viewHeight / bufferHeight,
+                    (float) viewWidth / bufferWidth);
             matrix.postScale(scale, scale, centerX, centerY);
         }
         int requiredImageRotation = RotationHelper.getNeededImageRotationDegrees(mActivity, mCameraId);
@@ -214,10 +221,46 @@ public class PreviewManager
             assert texture != null;
 
             // We configure the size of default buffer to be the size of camera preview we want.
-            texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
+            texture.setDefaultBufferSize(bufferWidth, bufferHeight);
 
             // This is the output Surface we need to start preview.
             mPreviewSurface = new Surface(texture);
+        }
+    }
+
+    private int mViewWidth = -100;
+    private int mViewHeight = -100;
+    private int mRotation = -100;
+    private int mBufferHeight = -100;
+    private int mBufferWidth = -100;
+    private boolean haveTransformParametersChanged(int viewWidth, int viewHeight, int rotation,  int bufferHeight, int bufferWidth)
+    {
+        try
+        {
+            if (mViewWidth != viewWidth)
+                return true;
+
+            if (mViewHeight != viewHeight)
+                return true;
+
+            if (mRotation != rotation)
+                return true;
+
+            if (mBufferHeight != bufferHeight)
+                return true;
+
+            if (mBufferWidth != bufferWidth)
+                return true;
+
+            return false;
+        }
+        finally
+        {
+            mViewWidth = viewWidth;
+            mViewHeight = viewHeight;
+            mRotation = rotation;
+            mBufferHeight = bufferHeight;
+            mBufferWidth = bufferWidth;
         }
     }
 

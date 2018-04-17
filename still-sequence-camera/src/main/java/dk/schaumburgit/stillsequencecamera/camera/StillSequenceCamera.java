@@ -5,22 +5,24 @@ import android.graphics.ImageFormat;
 import android.hardware.Camera;
 import android.hardware.Camera.CameraInfo;
 import android.hardware.Camera.PictureCallback;
-import android.media.Image;
 import android.os.Handler;
 import android.util.Log;
+import android.util.Size;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
+import com.google.zxing.BinaryBitmap;
+
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
+import dk.schaumburgit.stillsequencecamera.ISource;
 import dk.schaumburgit.stillsequencecamera.IStillSequenceCamera;
+import dk.schaumburgit.stillsequencecamera.CaptureFormatInfo;
+import dk.schaumburgit.stillsequencecamera.imageformats.ImageConverter;
+import dk.schaumburgit.stillsequencecamera.imageformats.LuminanceSourceFactory;
 
 /**
  * Created by Thomas Schaumburg on 08-12-2015.
@@ -28,7 +30,14 @@ import dk.schaumburgit.stillsequencecamera.IStillSequenceCamera;
 public class StillSequenceCamera implements IStillSequenceCamera {
     private static final String TAG = "StillSequenceCamera";
     private final int mCameraId;
+    private int mImageFormat;
+    private int mImageWidth;
+    private int mImageHeight;
+    private int mPreviewFormat;
+    private int mPreviewWidth;
+    private int mPreviewHeight;
     private Camera mCamera;
+    private PreviewBufferManager mBufferManager;
     private final Activity mActivity;
     private final int mMinPixels;
     private final SurfaceView mPreview;
@@ -37,6 +46,7 @@ public class StillSequenceCamera implements IStillSequenceCamera {
     private final static int CLOSED = 0;
     private final static int INITIALIZED = 1;
     private final static int CAPTURING = 2;
+    private boolean mAutofocusNeedsTrigger = false;
     private boolean mLockFocus = true;
     private int mState = CLOSED;
 
@@ -69,16 +79,42 @@ public class StillSequenceCamera implements IStillSequenceCamera {
 
         // Open a camera:
         mCamera = Camera.open(mCameraId);
+        mBufferManager = new PreviewBufferManager(mCamera);
 
     }
 
     @Override
-    public Map<Integer, Double> getSupportedImageFormats() {
-        Map<Integer, Double> res = new HashMap<Integer, Double>();
+    public double sourceAspectRatio() {
+        android.hardware.Camera.Size pictureSize = mCamera.getParameters().getPictureSize();
+        return  pictureSize.width / pictureSize.height;
+    }
+
+    @Override
+    public List<CaptureFormatInfo> getSupportedImageFormats(double relativeDevicePerformance) {
+        List<CaptureFormatInfo> res = new ArrayList<CaptureFormatInfo>();
 
         for (int format : mCamera.getParameters().getSupportedPictureFormats()) {
-            res.put(format, getFormatCost(format));
-            Log.i(TAG, "CAMERA FORMAT: " + format);
+            for (android.hardware.Camera.Size size : mCamera.getParameters().getSupportedPictureSizes()) {
+                boolean unsupported = false;
+                String comment = "";
+                double nanosPerFrameCapture = getFormatCost(format) * relativeDevicePerformance;
+                double nanosPerFrameConversion = LuminanceSourceFactory.nanosPerFrameConversion(format, size.width, size.height, relativeDevicePerformance);
+                if (nanosPerFrameConversion < 0)
+                {
+                    unsupported = true;
+                    comment += "Format cannot be converted to a scannable bitmap, ";
+                }
+                res.add(
+                        new CaptureFormatInfo(
+                                format,
+                                size.width,
+                                size.height,
+                                unsupported,
+                                nanosPerFrameCapture,
+                                nanosPerFrameConversion,
+                                comment)
+                );
+            }
         }
         return res;
     }
@@ -140,39 +176,41 @@ public class StillSequenceCamera implements IStillSequenceCamera {
      *                                       camera is in use by another process or device policy manager has
      *                                       disabled the camera).
      */
-    public void setup(int format)
+    public void setup(int format, int imageWidth, int imageHeight)
             throws UnsupportedOperationException, IllegalStateException {
         if (mState != CLOSED)
             throw new IllegalStateException("StillSequenceCamera.setup() can only be called on a new instance");
 
+        mImageFormat = format;
+        mImageWidth = imageWidth;
+        mImageHeight = imageHeight;
+
         Camera.Parameters pars = mCamera.getParameters();
-
         pars.setPictureFormat(format);
-        pars.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+        pars.setPictureSize(imageWidth, imageHeight);
 
-        // Choose an image size:
-        // =====================
-        List<Camera.Size> choices = pars.getSupportedPictureSizes();
-
-        // We'll prefer the smallest size larger than mMinPixels (default 1024*768)
-        List<Camera.Size> bigEnough = new ArrayList<>();
-        for (Camera.Size option : choices) {
-            if (option.width * option.height >= mMinPixels) {
-                bigEnough.add(option);
-            }
+        if (pars.getSupportedFocusModes().contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
+            Log.i(TAG, "Enabling FOCUS_MODE_CONTINUOUS_PICTURE");
+            pars.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+        } else if (pars.getSupportedFocusModes().contains(Camera.Parameters.FOCUS_MODE_AUTO)){
+            Log.i(TAG, "Enabling FOCUS_MODE_AUTO");
+            pars.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
+            // we still need to trigger autofocus...see below
+            Log.i(TAG, "...setting mAutofocusNeedsTrigger=true");
+            mAutofocusNeedsTrigger = true;
         }
-
-        Camera.Size captureSize = null;
-        if (bigEnough.isEmpty())
-            captureSize = Collections.max(choices, new CompareSizesByArea());
-        else
-            captureSize = Collections.min(bigEnough, new CompareSizesByArea());
-        pars.setPictureSize(captureSize.width, captureSize.height);
-        //pars.setPictureSize(1024, 768);
 
         // Set the parameters:
         // ===================
         mCamera.setParameters(pars);
+
+        Camera.Parameters pars2 = mCamera.getParameters();
+        mPreviewFormat = pars2.getPreviewFormat();
+        Camera.Size previewSize = pars2.getPreviewSize();
+        mPreviewWidth = previewSize.width;
+        mPreviewHeight = previewSize.height;
+
+        mBufferManager.setup(mPreviewFormat, mPreviewWidth, mPreviewHeight);
 
         mState = INITIALIZED;
     }
@@ -203,7 +241,8 @@ public class StillSequenceCamera implements IStillSequenceCamera {
             try {
                 mCamera.setPreviewDisplay(mPreview.getHolder());
                 mCamera.startPreview();
-                startTakingPictures();
+                //startTakingPictures();
+                startTakingPicturesUsingPreview();
             } catch (IOException e) {
                 Log.d(TAG, "Error setting camera preview: " + e.getMessage());
             }
@@ -213,49 +252,58 @@ public class StillSequenceCamera implements IStillSequenceCamera {
                 new SurfaceHolder.Callback() {
                     @Override
                     public void surfaceCreated(SurfaceHolder holder) {
-                        try {
-                            // create the surface and start camera preview
-                            if (mCamera != null) {
-                                mCamera.setPreviewDisplay(holder);
-                                mCamera.startPreview();
-                                startTakingPictures();
-                            }
-                        } catch (IOException e) {
-                            Log.d(TAG, "Error setting camera preview: " + e.getMessage());
-                        }
+                        startPreview(holder);
                     }
 
                     @Override
                     public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {
                         // If your preview can change or rotate, take care of those events here.
                         // Make sure to stop the preview before resizing or reformatting it.
-                        try {
-                            mCamera.stopPreview();
-                        } catch (Exception e) {
-                            // ignore: tried to stop a non-existent preview
-                        }
-                        try {
-                            mCamera.setPreviewDisplay(mPreview.getHolder());
-                            mCamera.startPreview();
-                        } catch (Exception e) {
-                            Log.d(TAG, "Error re-starting camera preview: " + e.getMessage());
-                        }
+                        stopPreview(false);
+                        startPreview(mPreview.getHolder());
                     }
 
                     @Override
                     public void surfaceDestroyed(SurfaceHolder holder) {
-                        try {
-                            stopTakingPictures();
-                            mCamera.stopPreview();
-                        } catch (Exception e) {
-                            // ignore: tried to stop a non-existent preview
-                        }
+                        stopPreview(true);
                     }
                 }
         );
         // deprecated setting, but required on Android versions prior to 3.0
         mPreview.getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
         mState = CAPTURING;
+    }
+
+    private void startPreview(SurfaceHolder holder)
+    {
+        try {
+            // create the surface and start camera preview
+            if (mCamera != null) {
+                mCamera.setPreviewDisplay(holder);
+                mCamera.startPreview();
+            }
+        } catch (IOException e) {
+            Log.d(TAG, "Error setting camera preview: " + e.getMessage());
+        }
+
+        try {
+            // create the surface and start camera preview
+            if (mCamera != null) {
+                startTakingPicturesUsingPreview();
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "Error starting capture: " + e.getMessage());
+        }
+    }
+
+    private void stopPreview(boolean stopCapture) {
+        try {
+            if (stopCapture)
+                stopTakingPicturesUsingPreview();
+            mCamera.stopPreview();
+        } catch (Exception e) {
+            // ignore: tried to stop a non-existent preview
+        }
     }
 
     /**
@@ -275,13 +323,8 @@ public class StillSequenceCamera implements IStillSequenceCamera {
 
         mImageListener = null;
         mCallbackHandler = null;
-        stopTakingPictures();
 
-        try {
-            mCamera.stopPreview();
-        } catch (Exception e) {
-            // ignore: tried to stop a non-existent preview
-        }
+        stopPreview(true);
 
         mState = INITIALIZED;
     }
@@ -308,8 +351,9 @@ public class StillSequenceCamera implements IStillSequenceCamera {
 
     private boolean mContinueTakingPictures = false;
 
-    private void startTakingPictures()
-            throws IllegalStateException {
+    private void startTakingPicturesUsingPreview()
+            throws IllegalStateException
+    {
         if (mContinueTakingPictures)
             return;
 
@@ -317,7 +361,87 @@ public class StillSequenceCamera implements IStillSequenceCamera {
             throw new IllegalStateException("StillSequenceCamera.start() cannot be called before setup()");
 
         mContinueTakingPictures = true;
-        takePicture();
+
+        mBufferManager.start(3);
+
+        final Camera.PreviewCallback frameHandler =
+                new Camera.PreviewCallback() {
+                    @Override
+                    public void onPreviewFrame(byte[] data, Camera camera) {
+                        Log.i(TAG, "Received preview frame (format=" + mPreviewFormat + ")");
+
+                        if (!mContinueTakingPictures) {
+                            mCamera.setPreviewCallbackWithBuffer(null);
+                            return;
+                        }
+
+                        ISource source = mBufferManager.borrow(data);
+                        try {
+
+                            final BinaryBitmap bitmap = ImageConverter.DecodeData(mPreviewFormat, mPreviewWidth, mPreviewHeight, data);
+
+                            if (mImageListener == null) {
+                                mCamera.addCallbackBuffer(data);
+                                return;
+                            }
+
+                            mCallbackHandler.post(
+                                    new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            mImageListener.onImageAvailable(null /*new SourceJPEG(jpegData, size.width, size.height)*/, bitmap);
+                                        }
+                                    }
+                            );
+                        } finally {
+                            source.close();
+                        }
+                    }
+                };
+
+        //mCamera.setPreviewCallbackWithBuffer(frameHandler);
+
+        if (mAutofocusNeedsTrigger)
+        {
+            mCamera.autoFocus(new Camera.AutoFocusCallback() {
+                @Override
+                public void onAutoFocus(boolean success, Camera camera) {
+                    mCamera.setPreviewCallbackWithBuffer(frameHandler);
+                }
+            });
+        } else {
+            mCamera.setPreviewCallbackWithBuffer(frameHandler);
+        }
+
+    }
+
+    private void stopTakingPicturesUsingPreview() {
+        mContinueTakingPictures = false;
+    }
+
+/*
+    private void startTakingPictures()
+            throws IllegalStateException
+    {
+        if (mContinueTakingPictures)
+            return;
+
+        if (mCameraId < 0)
+            throw new IllegalStateException("StillSequenceCamera.start() cannot be called before setup()");
+
+        mContinueTakingPictures = true;
+
+        if (mAutofocusNeedsTrigger)
+        {
+            mCamera.autoFocus(new Camera.AutoFocusCallback() {
+                @Override
+                public void onAutoFocus(boolean success, Camera camera) {
+                    takePicture();
+                }
+            });
+        } else {
+            takePicture();
+        }
     }
 
     private void stopTakingPictures() {
@@ -335,24 +459,27 @@ public class StillSequenceCamera implements IStillSequenceCamera {
                         final Camera.Size size = camera.getParameters().getPictureSize();
                         Log.i(TAG, "Captured JPEG " + jpegData.length + " bytes (" + size.width + "x" + size.height + ")");
 
+                        if (mContinueTakingPictures) {
+                            mCamera.startPreview();
+                            takePicture();
+                        }
+
                         if (mImageListener != null) {
+                            final BinaryBitmap bitmap = ImageConverter.DecodeJPEG(jpegData, size.width, size.height);
                             mCallbackHandler.post(
                                     new Runnable() {
                                         @Override
                                         public void run() {
-                                            mImageListener.onJpegImageAvailable(jpegData, size.width, size.height);
+                                            mImageListener.onImageAvailable(new SourceJPEG(jpegData, size.width, size.height), bitmap);
                                         }
                                     }
                             );
-                        }
-                        if (mContinueTakingPictures) {
-                            mCamera.startPreview();
-                            takePicture();
                         }
                     }
                 }
         );
     }
+*/
 
     @Override
     public boolean isLockFocus() {

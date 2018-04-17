@@ -1,23 +1,25 @@
 package dk.schaumburgit.stillsequencecamera;
 
-import android.media.Image;
 import android.os.Handler;
-import java.util.Map;
+
+import com.google.zxing.BinaryBitmap;
+
+import java.util.List;
 
 /**
  * Created by Thomas Schaumburg on 21-11-2015.
  */
 public interface IStillSequenceCamera {
-    Map<Integer,Double> getSupportedImageFormats();
-    void setup(int imageFormat);
+    double sourceAspectRatio();
+    List<CaptureFormatInfo> getSupportedImageFormats(double relativeDevicePerformance);
+    void setup(int imageFormat, int imageWidth, int imageHeight);
     void start(OnImageAvailableListener listener, Handler callbackHandler);
     void stop();
     void close();
 
     public interface OnImageAvailableListener
     {
-        void onImageAvailable(Image image);
-        void onJpegImageAvailable(byte[] jpegData, int width, int height);
+        void onImageAvailable(ISource source, BinaryBitmap bitmap);
         void onError(Exception error);
     }
 

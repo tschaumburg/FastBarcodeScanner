@@ -5,6 +5,7 @@ import android.util.Log;
 
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeInfo;
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.MultipleBarcodesDetectedListener;
+import dk.schaumburgit.stillsequencecamera.ISource;
 import dk.schaumburgit.trackingbarcodescanner.Barcode;
 import dk.schaumburgit.trackingbarcodescanner.ScanOptions;
 
@@ -50,7 +51,7 @@ public class MultiCallbackManager //extends ErrorCallbackHandler
 
     private int mNoBarcodeCount = 0;
 
-    public void onMultipleBarcodesFound(Barcode[] bcs, Image source) {
+    public void onMultipleBarcodesFound(Barcode[] bcs, ISource source) {
         if (bcs == null || bcs.length == 0) {
             Log.v(TAG, "Found 0 barcodes");
             mNoBarcodeCount++;
@@ -64,7 +65,7 @@ public class MultiCallbackManager //extends ErrorCallbackHandler
             mNoBarcodeCount = 0;
             if (!_equals(bcs, mLastReportedMultiBarcode)) {
                 mLastReportedMultiBarcode = bcs;
-                _onMultipleBarcodes(mLastReportedMultiBarcode, callbackOptions.includeImage ? source : null, listener, callbackHandler);
+                _onMultipleBarcodes(mLastReportedMultiBarcode, callbackOptions.includeImage ? source.save() : null, listener, callbackHandler);
             }
         }
     }
@@ -105,13 +106,13 @@ public class MultiCallbackManager //extends ErrorCallbackHandler
         return true;
     }
 
-    private void _onMultipleBarcodes(final Barcode[] barcodes, final Image source, final MultipleBarcodesDetectedListener listener, Handler callbackHandler) {
+    private void _onMultipleBarcodes(final Barcode[] barcodes, final String sourceUrl, final MultipleBarcodesDetectedListener listener, Handler callbackHandler) {
         if (listener != null) {
             callbackHandler.post(
                     new Runnable() {
                         @Override
                         public void run() {
-                            listener.OnHits(_convert(barcodes), source);
+                            listener.OnHits(_convert(barcodes), sourceUrl);
                         }
                     }
             );

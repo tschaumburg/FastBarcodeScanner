@@ -1,8 +1,10 @@
 package dk.schaumburgit.stillsequencecamera.camera2;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.ImageFormat;
+import android.graphics.Rect;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -12,28 +14,32 @@ import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
+import android.util.Range;
 import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.Surface;
-import android.view.TextureView;
 
-import java.nio.ByteBuffer;
+import com.google.zxing.BinaryBitmap;
+
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
+import dk.schaumburgit.stillsequencecamera.CaptureFormatInfo;
 import dk.schaumburgit.stillsequencecamera.IStillSequenceCamera;
+import dk.schaumburgit.stillsequencecamera.imageformats.LuminanceSourceFactory;
+
+import static dk.schaumburgit.stillsequencecamera.imageformats.ImageConverter.DecodeImage;
 
 /**
  * Created by Thomas on 08-12-2015.
  */
+
+@TargetApi(Build.VERSION_CODES.LOLLIPOP)
 public class CaptureManager {
     private static final String TAG = "StillSequenceCamera2";
 
@@ -49,6 +55,7 @@ public class CaptureManager {
     private CameraCaptureSession mCameraCaptureSession;
     private CaptureRequest mStillCaptureRequest = null;
 
+
     public CaptureManager(Activity activity, PreviewManager preview, int minPixels)
     {
         if (activity==null)
@@ -62,9 +69,80 @@ public class CaptureManager {
         this.mMinPixels = minPixels;
     }
 
-    public Map<Integer,Double> getSupportedImageFormats(String cameraId) {
+    public long minExposureInNanos(String cameraId)
+    {
+        try {
+            // Calculate default max fps from auto-exposure ranges in case getOutputMinFrameDuration() is
+            // not supported.
+            CameraManager manager = (CameraManager) mActivity.getSystemService(Context.CAMERA_SERVICE);
+
+            final Range<Integer>[] fpsRanges =
+                    manager
+                            .getCameraCharacteristics(cameraId)
+                            .get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
+
+            int maxFps = 0;
+            for (Range<Integer> fpsRange : fpsRanges) {
+                int lower = fixAndroidFpsBug(fpsRange.getLower());
+                int upper = fixAndroidFpsBug(fpsRange.getUpper());
+                maxFps = Math.max(maxFps, upper);
+            }
+
+            if (maxFps != 0)
+                return 1000000000 / maxFps;
+
+            return 0;
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+            return 0;
+        } catch (NullPointerException e) {
+            // Currently an NPE is thrown when the Camera2API is used but not supported on the
+            // device this code runs.
+            Log.e(TAG, "Camera2 API is not supported");
+            throw new UnsupportedOperationException("Camera2 API is not supported");
+        }
+    }
+
+    // see https://stackoverflow.com/questions/38370583/getcameracharacteristics-control-ae-available-target-fps-ranges-in-camerachara?rq=1
+    private int fixAndroidFpsBug(int fps) {
+        if (fps > 999)
+            return (int) (fps / 1000);
+
+        return fps;
+    }
+
+    public double sourceAspectRatio(String cameraId)
+    {
         try {
             CameraManager manager = (CameraManager) mActivity.getSystemService(Context.CAMERA_SERVICE);
+
+            Rect sensorPixels = manager
+                    .getCameraCharacteristics(cameraId)
+                    .get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
+            Log.v(TAG, "Sensor is " + sensorPixels.width() + " x " + sensorPixels.height());
+
+            return sensorPixels.width() / sensorPixels.height();
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        } catch (NullPointerException e) {
+            // Currently an NPE is thrown when the Camera2API is used but not supported on the
+            // device this code runs.
+            Log.e(TAG, "Camera2 API is not supported");
+            throw new UnsupportedOperationException("Camera2 API is not supported");
+        }
+
+        return 4/3;
+    }
+
+    /**
+     *
+     * @param cameraId
+     * @return map (format) => (size, cost in nanos)
+     */
+    public List<CaptureFormatInfo> getSupportedImageFormats(String cameraId, double relativeDevicePerformance) {
+        try {
+            CameraManager manager = (CameraManager) mActivity.getSystemService(Context.CAMERA_SERVICE);
+
             StreamConfigurationMap map = manager
                     .getCameraCharacteristics(cameraId)
                     .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
@@ -73,10 +151,40 @@ public class CaptureManager {
                 throw new UnsupportedOperationException("Insufficient camera info available");
             }
 
-            Map<Integer, Double> res = new HashMap<Integer, Double>();
-            for (int format : map.getOutputFormats()) {
-                res.put(format, getFormatCost(format));
-                Log.i(TAG, "CAMERA FORMAT: " + format);
+            List<CaptureFormatInfo> res = new ArrayList<CaptureFormatInfo>();
+            for (int format : map.getOutputFormats())
+            {
+                for (Size size : map.getOutputSizes(format))
+                {
+                    boolean unsupported = false;
+                    String comment = "";
+
+                    long nanosPerFrameCapture = map.getOutputMinFrameDuration(format, size);
+
+                    if (nanosPerFrameCapture <=0)
+                        nanosPerFrameCapture = minExposureInNanos(cameraId);
+
+                    if (nanosPerFrameCapture <=0)
+                        nanosPerFrameCapture = 33000000; // => 30 FPS
+
+                    double nanosPerFrameConversion = LuminanceSourceFactory.nanosPerFrameConversion(format, size.getWidth(), size.getHeight(), relativeDevicePerformance);
+                    if (nanosPerFrameConversion < 0)
+                    {
+                        unsupported = true;
+                        comment += "Format cannot be converted to a scannable bitmap, ";
+                    }
+
+                    res.add(
+                            new CaptureFormatInfo(
+                                    format,
+                                    size.getWidth(),
+                                    size.getHeight(),
+                                    unsupported,
+                                    nanosPerFrameCapture,
+                                    nanosPerFrameConversion,
+                                    comment)
+                    );
+                }
             }
 
             return res;
@@ -92,66 +200,10 @@ public class CaptureManager {
         return null;
     }
 
-    private static double getFormatCost(int format)
-    {
-        // TODO: 14-12-2015
-        // Consider introducing *device profiles* for image format capture costs
-        // - relative costs of various formats will probably depend on eg. hardware encoder support.
-        switch (format)
-        {
-            case ImageFormat.UNKNOWN:
-                return 1.0;
-            case ImageFormat.NV21:
-                // Doc: ...The YUV_420_888 format is recommended for YUV output instead
-                return 0.7;
-            case ImageFormat.NV16:
-                // This format has never been seen in the wild, but is compatible as we only care
-                // about the Y channel, so allow it.
-                // Doc: ...The YUV_420_888 format is recommended for YUV output instead
-                return 0.8;
-            case ImageFormat.YV12:
-                // Doc: ...The YUV_420_888 format is recommended for YUV output instead
-                return 0.8;
-            case ImageFormat.YUY2:
-                // Doc: ...The YUV_420_888 format is recommended for YUV output instead
-                return 0.8;
-            case ImageFormat.YUV_420_888:
-                return 0.71; // measured on a Nexus 6P (0.64) and 5X (0.78)
-            case ImageFormat.YUV_422_888:
-                // only varies from yuv_420_888 in chroma-subsampling, which I'm guessing
-                // doesn't affect the luminance much
-                // (see https://en.wikipedia.org/wiki/Chroma_subsampling)
-                return 0.71;
-            case ImageFormat.YUV_444_888:
-                // only varies from yuv_420_888 in chroma-subsampling, which I'm guessing
-                // doesn't affect the luminance much
-                // (see https://en.wikipedia.org/wiki/Chroma_subsampling)
-                return 0.71;
-            case ImageFormat.FLEX_RGB_888:
-            case ImageFormat.FLEX_RGBA_8888:
-            case ImageFormat.RGB_565:
-                return 0.8; // pure guesswork
-            case ImageFormat.JPEG:
-                return 1.0; // duh...?
-            case ImageFormat.RAW_SENSOR:
-                return 2.02; // measured on a Nexus 6P (2.06) and 5X ()1.98) - surprisingly *slower* than JPEG!
-            case ImageFormat.RAW10:
-                return 0.66; // measured on a Nexus 6P (0.64) and 5X (0.67)
-            case ImageFormat.RAW12:
-                return 0.66; // guesswork - setting it to the same as RAW10
-            case ImageFormat.DEPTH16:
-            case ImageFormat.DEPTH_POINT_CLOUD:
-                return 2.5; // sound terribly complicated - but I'm just guessing....
-            //ImageFormat.Y8:
-            //ImageFormat.Y16:
-        }
 
-        return 1.0;
-    }
-
-    public void setup(String cameraId, int imageFormat) {
+    public void setup(String cameraId, int outputFormat, int imageWidth, int imageHeight) {
         try {
-            CameraManager manager = (CameraManager) mActivity.getSystemService(Context.CAMERA_SERVICE);
+            /*CameraManager manager = (CameraManager) mActivity.getSystemService(Context.CAMERA_SERVICE);
             StreamConfigurationMap map = manager
                     .getCameraCharacteristics(cameraId)
                     .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
@@ -165,6 +217,7 @@ public class CaptureManager {
             if (map.isOutputSupportedFor(imageFormat) == false)
                 throw new UnsupportedOperationException("Camera cannot capture images in format " + imageFormat);
             int outputFormat = imageFormat;
+
 
             // Choose an image size:
             // =====================
@@ -183,13 +236,18 @@ public class CaptureManager {
                 captureSize = Collections.max(choices, new CompareSizesByArea());
             else
                 captureSize = Collections.min(bigEnough, new CompareSizesByArea());
+            */
 
             // Set up the still image reader:
             // ==============================
-            mImageReader = ImageReader.newInstance(captureSize.getWidth(), captureSize.getHeight(),
-                    outputFormat, /*maxImages*/4);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
+            mImageReader = ImageReader.newInstance(
+                    imageWidth,
+                    imageHeight,
+                    outputFormat,
+                    /*maxImages*/4
+            );
+        //} catch (CameraAccessException e) {
+        //    e.printStackTrace();
         } catch (NullPointerException e) {
             // Currently an NPE is thrown when the Camera2API is used but not supported on the
             // device this code runs.
@@ -284,8 +342,10 @@ public class CaptureManager {
                                     return;
                                 }
 
+                                final BinaryBitmap bitmap = DecodeImage(image);
+
                                 try {
-                                    listener.onImageAvailable(image);
+                                    listener.onImageAvailable(new SourceImage(image), bitmap);
                                 } catch (Exception e) {
                                     Log.e(TAG, "Error extracting image", e);
                                 } finally {

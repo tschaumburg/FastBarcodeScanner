@@ -6,13 +6,13 @@ ext {
 }
 
 android {
-    compileSdkVersion 26 //23
+    compileSdkVersion 21
     buildToolsVersion '26.0.2'
 
     defaultConfig {
         applicationId "dk.schaumburgit.fastbarcodescannerdemo"
         minSdkVersion 16
-        targetSdkVersion 26 //23
+        targetSdkVersion 21
         versionCode 1
         versionName "1.0"
     }
@@ -27,15 +27,12 @@ android {
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     testImplementation 'junit:junit:4.12'
-    compile 'com.android.support:appcompat-v7:26.1.0'
-    compile 'com.android.support.constraint:constraint-layout:1.0.2'
-    //implementation 'com.android.support:appcompat-v7:23.4.0'
-    //implementation 'com.android.support:design:23.4.0'
-    //implementation 'com.android.support:support-v4:23.4.0'
-    //implementation 'com.android.support:support-v13:23.4.0'
-
-    //implementation 'dk.schaumburgit.fast-barcode-scanner:fast-barcode-scanner:' + PUBLISH_VERSION
-    implementation project(':fast-barcode-scanner')
+    implementation 'com.android.support:appcompat-v7:21.4.0'
+    implementation 'com.android.support:design:21.4.0'
+    implementation 'com.android.support:support-v4:21.4.0'
+    implementation 'com.android.support:support-v13:21.4.0'
+    implementation 'dk.schaumburgit.fast-barcode-scanner:fast-barcode-scanner:' + PUBLISH_VERSION
+    //implementation project(':fast-barcode-scanner')
 }
 
 apply from: 'https://raw.githubusercontent.com/blundell/release-android-library/master/android-release-aar.gradle'

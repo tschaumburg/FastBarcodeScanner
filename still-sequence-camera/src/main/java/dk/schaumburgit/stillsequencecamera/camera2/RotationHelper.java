@@ -30,7 +30,7 @@ class RotationHelper
             result = (cameraOrientationDegrees - deviceRotationDegrees + 270) % 360;
         }
 
-        Log.e(TAG, "ROTATION: (cameraOrientationDegrees: " + cameraOrientationDegrees + ", deviceRotationDegrees: " + deviceRotationDegrees + ") => " + result);
+        //Log.v(TAG, "ROTATION: (cameraOrientationDegrees: " + cameraOrientationDegrees + ", deviceRotationDegrees: " + deviceRotationDegrees + ") => " + result);
 
         return result;
     }

@@ -10,9 +10,15 @@ public class StillSequenceCamera2Options
 {
     public enum Facing
     {
-        Back,
-        Front,
-        External
+        Back(0),
+        Front(1),
+        External(2)
+        ;
+        private final int intValue;
+
+        private Facing(int intValue) {
+            this.intValue = intValue;
+        }
     }
 
     public final TextureView preview;

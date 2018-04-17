@@ -390,11 +390,13 @@ public class FocusManager {
                 }
                 case STATE_WAITING_LOCK: {
                     Integer autoFocusState = result.get(CaptureResult.CONTROL_AF_STATE);
+                    Log.i(TAG, "FocusingStateMachine.process() autoFocusState = " + autoFocusState);
                     if (autoFocusState == null) {
                         onFocusLocked();
                         mState = STATE_PICTURE_TAKEN;
                     } else if (CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED == autoFocusState ||
-                            CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED == autoFocusState) {
+                    CaptureResult.CONTROL_AF_STATE_PASSIVE_FOCUSED == autoFocusState ||
+                        CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED == autoFocusState) {
                         // CONTROL_AE_STATE can be null on some devices
                         autoFocusState = result.get(CaptureResult.CONTROL_AE_STATE);
                         if (autoFocusState == null ||

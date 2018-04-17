@@ -9,6 +9,7 @@ import java.util.Objects;
 
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeDetectedListener;
 import dk.schaumburgit.fastbarcodescanner.IBarcodeScanner.BarcodeInfo;
+import dk.schaumburgit.stillsequencecamera.ISource;
 import dk.schaumburgit.trackingbarcodescanner.Barcode;
 import dk.schaumburgit.trackingbarcodescanner.ScanOptions;
 
@@ -55,9 +56,10 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
     private int mConsecutiveBlankCount = 0;
     private int mConsecutiveErrorCount = 0;
 
-    public void onBlank(Image source) {
+    public void onBlank() {
         if (this.mScanOptions.emptyMarker != null) {
             this.onError(new Exception("False blank detected"));
+            Log.v(TAG, ": False blank detected" );
             return;
         }
 
@@ -67,26 +69,38 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
         mConsecutiveBlankCount++;
         mConsecutiveErrorCount = 0;
         if (mConsecutiveBlankCount >= this.callbackOptions.debounceBlanks) {
-            sendBlank(callbackOptions.includeImage ? source : null);
+            sendBlank();
+            //sendBarcode("testblank", null, callbackOptions.includeImage ? source : null);
         } else {
             Log.v(TAG, "Debounced barcode: " + null);
         }
     }
 
-    public void onBarcode(Barcode bc, Image source) {
+    public void onBarcode(Barcode bc, ISource source) {
         // Found nothing
         if (bc == null || bc.contents == null) {
-            this.onBlank(source);
+            this.onBlank();
             return;
+        }
+
+        if (callbackOptions.includeImage == false) {
+            if (source != null) {
+                source.close();
+                source = null;
+            }
         }
 
         if (this.mScanOptions.emptyMarker != null) {
             // If this is an empty-marker, it should be processed as a blank,
             // but without any debouncing:
             if (bc.contents.equalsIgnoreCase(this.mScanOptions.emptyMarker)) {
+                if (source != null) {
+                    source.close();
+                    source = null;
+                }
                 mConsecutiveBlankCount = 0;
                 mConsecutiveErrorCount = 0;
-                sendBlank(callbackOptions.includeImage ? source : null);
+                sendBlank();
                 return;
             }
         }
@@ -96,7 +110,7 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
         // Debounce:
         mConsecutiveBlankCount = 0;
         mConsecutiveErrorCount = 0;
-        sendBarcode(bc.contents, bc.points, callbackOptions.includeImage ? source : null);
+        sendBarcode(bc.contents, bc.points, source);
     }
 
 
@@ -119,49 +133,58 @@ public class SingleCallbackManager //extends ErrorCallbackHandler
 
     private String mLastReportedBarcode = "some random text 1234056g"; // null=> blank
 
-    private void sendBarcode(String barcode, Point[] points, final Image source)
+    private void sendBarcode(String barcode, Point[] points, final ISource source)
     {
-        // Conflation:
-        switch (this.callbackOptions.conflateHits)
-        {
-            case None:
-                Log.v(TAG, "Conflating barcode: " + barcode);
-                return;
-            case First:
-                if (mLatestEvent == ELastEvent.Barcode) {
+        try {
+            // Conflation:
+            switch (this.callbackOptions.conflateHits) {
+                case None:
                     Log.v(TAG, "Conflating barcode: " + barcode);
                     return;
-                }
-                break;
-            case Changes:
-                if (mLatestEvent == ELastEvent.Barcode)
-                {
-                    if (Objects.equals(barcode, mLastReportedBarcode)) {
+                case First:
+                    if (mLatestEvent == ELastEvent.Barcode) {
                         Log.v(TAG, "Conflating barcode: " + barcode);
                         return;
                     }
-                }
-                break;
-            case All:
-                break;
-        }
-
-        final BarcodeInfo bc = new BarcodeInfo(barcode, points);
-        Log.v(TAG, "Sending barcode: " + bc.barcode);
-        callbackHandler.post(
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        listener.OnHit(bc, source);
+                    break;
+                case Changes:
+                    if (mLatestEvent == ELastEvent.Barcode) {
+                        if (stringEquals(barcode, mLastReportedBarcode)) {
+                            Log.v(TAG, "Conflating barcode: " + barcode);
+                            return;
+                        }
                     }
-                }
-        );
+                    break;
+                case All:
+                    break;
+            }
 
-        mLastReportedBarcode = barcode;
-        mLatestEvent = ELastEvent.Barcode;
+            final BarcodeInfo bc = new BarcodeInfo(barcode, points);
+            final String sourceUrl = (source == null) ? null : source.save();
+            Log.v(TAG, "Sending barcode: " + bc.barcode + " (image: " + (sourceUrl == null ? "none" : sourceUrl));
+            callbackHandler.post(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            listener.OnHit(bc, sourceUrl);
+                        }
+                    }
+            );
+
+            mLastReportedBarcode = barcode;
+            mLatestEvent = ELastEvent.Barcode;
+        }
+        finally {
+            if (source!=null)
+                source.close();
+        }
     }
 
-    private void sendBlank(final Image source) {
+    public static boolean stringEquals(String str1, String str2) {
+        return (str1 == null ? str2 == null : str1.equals(str2));
+    }
+
+    private void sendBlank() {
         // Conflation:
         switch (this.callbackOptions.conflateBlanks)
         {

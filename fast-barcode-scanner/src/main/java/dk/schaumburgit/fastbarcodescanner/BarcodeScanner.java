@@ -17,21 +17,22 @@ package dk.schaumburgit.fastbarcodescanner;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
-import android.graphics.ImageFormat;
 import android.media.Image;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
+import android.util.Pair;
+import android.util.Size;
 import android.view.SurfaceView;
 
 import com.google.zxing.BinaryBitmap;
 
 import java.security.InvalidParameterException;
-import java.util.Map;
 
 import dk.schaumburgit.fastbarcodescanner.callbackmanagers.CallBackOptions;
 import dk.schaumburgit.fastbarcodescanner.callbackmanagers.MultiCallbackManager;
 import dk.schaumburgit.fastbarcodescanner.callbackmanagers.SingleCallbackManager;
+import dk.schaumburgit.stillsequencecamera.ISource;
 import dk.schaumburgit.stillsequencecamera.IStillSequenceCamera;
 import dk.schaumburgit.stillsequencecamera.camera.StillSequenceCamera;
 import dk.schaumburgit.stillsequencecamera.camera.StillSequenceCameraOptions;
@@ -76,6 +77,7 @@ class BarcodeScanner implements IBarcodeScanner {
 
     private final IStillSequenceCamera mImageSource;
     private final TrackingBarcodeScanner mBarcodeFinder;
+    private final ConfigManager mFormatChooser;
 
     private final ScanOptions mScanOptions;
     private final CallBackOptions mCallBackOptions;
@@ -95,47 +97,14 @@ class BarcodeScanner implements IBarcodeScanner {
         this.mCallBackOptions = callBackOptions;
 
         this.mActivity = activity;
-        this.mBarcodeFinder = new TrackingBarcodeScanner(scanOptions, trackingOptions);
         this.mImageSource = new StillSequenceCamera2(activity, cameraOptions);
+        this.mBarcodeFinder = new TrackingBarcodeScanner(scanOptions, trackingOptions);
+        this.mFormatChooser = new ConfigManager(mImageSource, mBarcodeFinder);
 
-        Map<Integer, Double> cameraFormatCosts = mImageSource.getSupportedImageFormats();
-        Map<Integer, Double> zxingFormatCosts = mBarcodeFinder.getPreferredImageFormats();
-
-        int pictureFormat = calculateCheapestFormat(cameraFormatCosts, zxingFormatCosts);
-        this.mImageSource.setup(pictureFormat);
+        ConfigInfo bestFormatInfo = this.mFormatChooser.calculateBestFormat(cameraOptions.minPixels);
+        this.mImageSource.setup(bestFormatInfo.imageFormat, bestFormatInfo.imageWidth, bestFormatInfo.imageHeight);
     }
 
-    private static int calculateCheapestFormat(Map<Integer, Double> cost1, Map<Integer, Double> cost2) {
-        double bestYet = 1;
-        int result = ImageFormat.JPEG;
-        for (int format : cost1.keySet()) {
-            if (cost2.containsKey(format)) {
-                double c1 = cost1.get(format);
-                double c2 = cost2.get(format);
-                double totalCost = c1 * c2;
-
-                if (totalCost < bestYet) {
-                    result = format;
-                    bestYet = totalCost;
-                }
-            }
-        }
-        return result;
-    }
-
-    /*BarcodeScanner(
-            Activity activity,
-            TextureView textureView,
-            int resolution
-    ) {
-        this(
-                activity,
-                new StillSequenceCamera2Options(textureView, resolution, StillSequenceCamera2Options.Facing.Back),
-                new ScanOptions(),
-                new TrackingOptions(),
-                new CallBackOptions()
-        );
-    }*/
 
     /**
      * Creates a BarcodeScanner using the deprecated Camera API supported
@@ -175,12 +144,10 @@ class BarcodeScanner implements IBarcodeScanner {
         this.mActivity = activity;
         this.mBarcodeFinder = new TrackingBarcodeScanner(scanOptions, trackingOptions);
         this.mImageSource = new StillSequenceCamera(activity, cameraOptions);
+        this.mFormatChooser = new ConfigManager(mImageSource, mBarcodeFinder);
 
-        Map<Integer, Double> cameraFormatCosts = mImageSource.getSupportedImageFormats();
-        Map<Integer, Double> zxingFormatCosts = mBarcodeFinder.getPreferredImageFormats();
-
-        int pictureFormat = calculateCheapestFormat(cameraFormatCosts, zxingFormatCosts);
-        this.mImageSource.setup(pictureFormat);
+        ConfigInfo bestFormatInfo = this.mFormatChooser.calculateBestFormat(cameraOptions.minPixels);
+        this.mImageSource.setup(bestFormatInfo.imageFormat, bestFormatInfo.imageWidth, bestFormatInfo.imageHeight);
     }
 
     /**
@@ -233,17 +200,9 @@ class BarcodeScanner implements IBarcodeScanner {
                 new IStillSequenceCamera.OnImageAvailableListener() {
 
                     @Override
-                    public void onImageAvailable(Image image) {
-                        if (mPaused)
-                            image.close();
-                        else
-                            processSingleImage(image, callbackManager);
-                    }
-
-                    @Override
-                    public void onJpegImageAvailable(byte[] jpegData, int width, int height) {
+                    public void onImageAvailable(ISource source, BinaryBitmap bitmap) {
                         if (!mPaused)
-                            processSingleJpeg(jpegData, width, height, callbackManager);
+                            processSingleImage(source, bitmap, callbackManager);
                     }
 
                     @Override
@@ -282,17 +241,9 @@ class BarcodeScanner implements IBarcodeScanner {
                 new IStillSequenceCamera.OnImageAvailableListener() {
 
                     @Override
-                    public void onImageAvailable(Image source) {
-                        if (mPaused)
-                            source.close();
-                        else
-                            processMultiImage(source, minNoOfBarcodes, callbackManager);
-                    }
-
-                    @Override
-                    public void onJpegImageAvailable(byte[] jpegData, int width, int height) {
+                    public void onImageAvailable(ISource source, BinaryBitmap bitmap) {
                         if (!mPaused)
-                            processMultiJpeg(jpegData, width, height, minNoOfBarcodes, callbackManager);
+                            processMultiImage(source, bitmap, minNoOfBarcodes, callbackManager);
                     }
 
                     @Override
@@ -324,7 +275,7 @@ class BarcodeScanner implements IBarcodeScanner {
 
         if (mProcessingThread != null) {
             try {
-                mProcessingThread.quitSafely();
+                mProcessingThread.quit();
                 mProcessingThread.join();
                 mProcessingThread = null;
                 mProcessingHandler = null;
@@ -342,26 +293,38 @@ class BarcodeScanner implements IBarcodeScanner {
     //*********************************************************************
     //*********************************************************************
 
-    private void processSingleImage(Image source, SingleCallbackManager callbackManager) {
+    private void processSingleImage(ISource source, BinaryBitmap bitmap, SingleCallbackManager callbackManager) {
         // Decode the image:
         try {
-            BinaryBitmap bitmap = mBarcodeFinder.DecodeImage(source);
             Barcode bc = mBarcodeFinder.findSingle(bitmap);
             if (bc == null) {
-                source.close();
-                callbackManager.onBlank(null);
+                if (source!=null)
+                {
+                    source.close();
+                    source = null;
+                }
+                callbackManager.onBlank();
             } else {
                 callbackManager.onBarcode(bc, source);
-                source.close();
             }
         } catch (Exception e) {
             Log.e(TAG, "Error processing image", e);
+            if (source!=null)
+            {
+                source.close();
+                source = null;
+            }
             callbackManager.onError(e);
         } finally {
-            source.close();
+            if (source!=null)
+            {
+                source.close();
+                source = null;
+            }
         }
     }
 
+    /*
     private void processSingleJpeg(byte[] jpegData, int width, int height, SingleCallbackManager callbackManager) {
         try {
             BinaryBitmap bitmap = mBarcodeFinder.DecodeImage(jpegData, width, height);
@@ -369,18 +332,19 @@ class BarcodeScanner implements IBarcodeScanner {
             if (bc == null) {
                 callbackManager.onBlank(null);
             } else {
-                callbackManager.onBarcode(bc, null/*source*/);
+                callbackManager.onBarcode(bc, null);//source);
             }
         } catch (Exception e) {
             Log.e(TAG, "Error processing image", e);
             callbackManager.onError(e);
         }
     }
+*/
 
-    private void processMultiImage(Image source, int minNoOfBarcodes, MultiCallbackManager callbackManager) {
+    private void processMultiImage(ISource source, BinaryBitmap bitmap, int minNoOfBarcodes, MultiCallbackManager callbackManager) {
         // Decode the image:
         try {
-            BinaryBitmap bitmap = mBarcodeFinder.DecodeImage(source);
+            //BinaryBitmap bitmap = mBarcodeFinder.DecodeImage(source);
             Barcode[] bcs = mBarcodeFinder.findMultiple(bitmap);
             if (bcs == null) {
                 source.close();
@@ -400,6 +364,7 @@ class BarcodeScanner implements IBarcodeScanner {
         }
     }
 
+    /*
     private void processMultiJpeg(byte[] jpegData, int width, int height, int minNoOfBarcodes, MultiCallbackManager callbackManager) {
         try {
             BinaryBitmap bitmap = mBarcodeFinder.DecodeImage(jpegData, width, height);
@@ -409,14 +374,14 @@ class BarcodeScanner implements IBarcodeScanner {
             } else if (bcs.length < minNoOfBarcodes) {
                 callbackManager.onMultipleBarcodesFound(null, null);
             } else {
-                callbackManager.onMultipleBarcodesFound(bcs, null/*source*/);
+                callbackManager.onMultipleBarcodesFound(bcs, null);//source);
             }
         } catch (Exception e) {
             Log.e(TAG, "Error processing image", e);
             callbackManager.onError(e);
         }
     }
-
+*/
 
     @Override
     public boolean isLockFocus() {

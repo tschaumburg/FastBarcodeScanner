@@ -61,7 +61,7 @@ public class BarcodeScannerFactory {
 
     public static IBarcodeScannerBuilder builder(TextureView preview)
     {
-        return new BarcodeScannerBuilder(new StillSequenceCamera2Options(preview));
+            return new BarcodeScannerBuilder(new StillSequenceCamera2Options(preview));
     }
 
     public static IBarcodeScannerBuilder builderLegacy(SurfaceView preview)
@@ -75,15 +75,6 @@ public class BarcodeScannerFactory {
             return builder(null);
         } else {
             return  builderLegacy(null);
-        }
-    }
-
-    public static SupportedCameraAPI supportedAPI()
-    {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            return SupportedCameraAPI.Camera2;
-        } else {
-            return  SupportedCameraAPI.LegacyOnly;
         }
     }
 
