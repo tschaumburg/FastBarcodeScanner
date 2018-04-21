@@ -6,7 +6,7 @@ In your `build.gradle`,, import `fast-barcode-scanner`:
 
 ```groovy
 dependencies {
-    implementation 'dk.schaumburgit.fast-barcode-scanner:fast-barcode-scanner:2.0.0'
+    implementation 'dk.schaumburgit.fast-barcode-scanner:fast-barcode-scanner:2.0.0.alpha5'
 }
 ```
 
