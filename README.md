@@ -16,7 +16,7 @@ FastBarcodeScanner is a suite of open-source components for barcode scanning on 
 - **iOS:**
 - **Cordova/Phonegap plugin:**
 
-##Advantages
+## Advantages
 
 The FastBarcodeScanner suite provides **fast**, **continuous**, **headless** scanning 
 for barcodes, using the camera built into your phone or tablet.
@@ -29,17 +29,17 @@ The main advantages are:
 - **Optimized:** To reduce the load on the application, FastBarcodeScanner uses configurable *filtering,* *optimistic tracking,* *event conflation* and *scan state debouncing*.
 - **Open source**: the entire FastBarcodeScanner library is open source (as is the ZXing library, BTW) - so it's free for you to examine, tweak, optimize and fix
  
-##Advanced configuration
+## Advanced configuration
 
-###Filtering
+### Filtering
 This can be modified to look only for specific barcode types:
 
 The scanner can also be configured to disregard any barcode whose content doesn't match a specified 
 pattern:
 
-###Debounce
+### Debounce
 
-###Event conflation
+### Event conflation
 
 - **None:** No events of this kind are ever let through.
 - **First:** Only the first event in a sequeence of this kind is let through. Note the 
@@ -51,7 +51,7 @@ pattern:
                value has changed.
 - **All:** Every event of this kind is let though (i.e. conflation is off)
 
-###Optimistic tracking
+### Optimistic tracking
 
 When scanning at 5-30 fps as `fast-barcode-scanner` does, it's a pretty good bet that 
 frame *n* will contain a barcode in roughly the same place as frame *(n-1).*
@@ -67,7 +67,7 @@ to looking in the entire frame.
 After a configurable number of such failures, fbs will switch back out of tracking mode - 
 until next time it acquires a barcode.
 
-###Fixed-distance or variable-distance scanning
+### Fixed-distance or variable-distance scanning
 If the items you are scanning are always at a *fixed distance* from the camera, you only have to focus the camera once at the beginning of the scanning session. This gives much higher speed and better results.
 
 Examples of fixed-distance scanning scenarios include ticket verification, document identification, library book scanners, some forms of inventory taking: all scenarios where you can mount the camera at a fixed location, and move the barcoded items past:
@@ -84,7 +84,7 @@ The focus when writing this library has been overwhelmingly on the fixed-distanc
 
 So feel free to suggest (or make) improvements!
  
-###Fixed-distance scanning: further optimizations
+### Fixed-distance scanning: further optimizations
 
 When scanning the captured images, FastBarcodeScanner uses a *tracking* approach described for the TrackingBarcodeScanner library: it first looks in the place where it previously found a barcode - only if that doesn't succeed does it look at the whole image.
 
